@@ -1,0 +1,8 @@
+{
+  "version": "6.5.438",
+  "file": "pdf-text.js",
+  "sha256": "e29aa6556cbaddbb03432360b60b2dadeb0f90ea83674040b05436dd7f352242",
+  "license": "Apache-2.0",
+  "source": "https://www.npmjs.com/package/pdfjs-dist/v/6.5.438",
+  "bundler": "esbuild@0.25.12"
+}

@@ -1,0 +1,11 @@
+{
+  "package": "@noble/hashes",
+  "version": "1.8.0",
+  "source": "https://github.com/paulmillr/noble-hashes/tree/1.8.0",
+  "entry": "@noble/hashes/sha256",
+  "build": "esbuild 0.25.12, bundle, format iife, platform browser, target es2020",
+  "file": "noble-sha256.cjs",
+  "sha256": "630a0f301c4bf11ba14a6c24071843e22b8dbb6a3581c3c147d5ec7b103079c1",
+  "license": "MIT",
+  "licenseFile": "noble-hashes-LICENSE.txt"
+}

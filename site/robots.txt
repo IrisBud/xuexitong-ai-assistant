@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://irisbud.github.io/xuexitong-ai-assistant/sitemap.xml

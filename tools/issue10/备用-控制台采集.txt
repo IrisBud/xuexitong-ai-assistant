@@ -1,0 +1,117 @@
+/* F12备用：先在Elements选中一道完整题目，再复制本文件全部到Console运行。 */
+(() => {
+  'use strict';
+  const HOST = 'xxt-issue10-readonly-collector';
+
+  const QUESTION = '.TiMu,.questionLi,.question-item,.questionItem,[data-question-id]';
+  const CONTROL = 'input[type="radio"],input[type="checkbox"],[role="radio"],[role="checkbox"],.num_option,.num_option_dx';
+  const EXCLUDE = '[data-xxt-codex-panel],#xxt-issue10-readonly-collector';
+  const aliases = new Map();
+  function alias(s) {
+    return String(s || '').replace(/https?:\/\/\S+|[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b1[3-9]\d{9}\b/gi, '[隐藏]')
+      .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}|[a-f0-9]{16,}|\d{5,}/gi, v => {
+        if (!aliases.has(v)) aliases.set(v, 'N' + (aliases.size + 1));
+        return aliases.get(v);
+      }).slice(0, 400);
+  }
+  function label(s) {
+    const v = String(s || '').trim().replace(/\s+/g, ' ');
+    if (!v) return '';
+    if (/^(?:[A-T][.、．]?|对|错|正确|错误|true|false|暂时保存|提交|确定|取消)$/i.test(v)) return v;
+    const kinds = [...new Set(v.match(/多选题|单选题|判断题|填空题|简答题|论述题|计算题|其他|其它/g) || [])];
+    return (kinds.length ? '[题型:' + kinds.join('/') + '] ' : '') + '[正文隐藏，' + Array.from(v).length + '字]';
+  }
+  function visible(n) {
+    const w = n.ownerDocument.defaultView;
+    return !!n.getClientRects().length && w.getComputedStyle(n).visibility !== 'hidden';
+  }
+  function attrs(n) {
+    const out = {};
+    for (const a of n.attributes) {
+      if (['id', 'class', 'name', 'type', 'role', 'for', 'contenteditable', 'disabled', 'readonly', 'multiple', 'tabindex'].includes(a.name)) out[a.name] = alias(a.value);
+      else if (['aria-disabled', 'aria-hidden', 'aria-multiselectable'].includes(a.name)) out[a.name] = /^(true|false)$/.test(a.value) ? a.value : '[隐藏]';
+      else if (a.name === 'aria-label') out[a.name] = label(a.value);
+      else if (/^on[a-z]+$/.test(a.name)) {
+        const names = [...a.value.matchAll(/\b([A-Za-z_$][\w.$]*)\s*\(/g)].map(m => alias(m[1]));
+        if (names.length) out['data-collector-' + a.name] = [...new Set(names)].slice(0, 8).join(',') + '(参数隐藏)';
+      }
+    }
+    return out;
+  }
+  function describe(n) {
+    return { tag: n.tagName.toLowerCase(), attrs: attrs(n), visible: visible(n) };
+  }
+  function structuralHTML(node) {
+    if (node.querySelectorAll('*').length > 6000) return { html: '', omitted: '节点过多，改用备用方法采集单题' };
+    const clone = node.cloneNode(true);
+    for (const n of [clone, ...clone.querySelectorAll('*')]) {
+      if (n.matches('script,style,noscript,template,link,meta,object,embed') || n.matches(EXCLUDE)) { n.remove(); continue; }
+      const kept = attrs(n);
+      // Only a short, explicitly named question-type code is useful; never export answer values.
+      const typeCode = n.matches('input[type="hidden"]') && /^(?:type|questiontype|answertype)\d*$/i.test(n.getAttribute('name') || '') && /^\d{1,2}$/.test(n.getAttribute('value') || '') ? n.getAttribute('value') : null;
+      for (const a of [...n.attributes]) n.removeAttribute(a.name);
+      for (const [k, v] of Object.entries(kept)) n.setAttribute(k, v);
+      if (n.matches('input')) n.setAttribute('value', typeCode === null ? '[输入内容隐藏]' : typeCode);
+      if (n.matches('textarea')) n.textContent = '[输入内容隐藏]';
+      if (n.matches('img,iframe,video,audio,source')) n.setAttribute('data-collector-resource', '地址隐藏，未下载');
+    }
+    const walker = clone.ownerDocument.createTreeWalker(clone, 4 | 128);
+    const comments = [];
+    let item;
+    while ((item = walker.nextNode())) {
+      if (item.nodeType === 8) comments.push(item);
+      else if (item.parentElement?.tagName !== 'TEXTAREA') item.nodeValue = label(item.nodeValue);
+    }
+    comments.forEach(n => n.remove());
+    const html = clone.outerHTML;
+    return { html: html.slice(0, 100000), truncated: html.length > 100000 };
+  }
+  function roots(doc) { return doc === picked.ownerDocument ? [pickedTarget] : []; }
+  function collect() {
+    aliases.clear();
+    const seen = new Set(), docs = [];
+    let questionCount = 0, inaccessibleFrames = 0, remaining = 24;
+    function visit(doc, depth) {
+      if (seen.has(doc) || seen.size >= 24 || depth > 6) return;
+      seen.add(doc);
+      const all = roots(doc);
+      const chosen = all.slice(0, remaining);
+      remaining -= chosen.length;
+      const questions = chosen.map((node, i) => {
+        const parents = [];
+        for (let p = node.parentElement; p && parents.length < 5 && !p.matches('body,html'); p = p.parentElement) parents.push(describe(p));
+        return { sample: i + 1, element: describe(node), parents, ...structuralHTML(node),
+          controls: [...node.querySelectorAll('input,textarea,select,[role="radio"],[role="checkbox"],iframe')].slice(0, 160).map(n => {
+            const style = n.ownerDocument.defaultView.getComputedStyle(n);
+            return { ...describe(n), disabled: !!n.disabled, readOnly: !!n.readOnly,
+              appearance: style.appearance, borderRadius: style.borderRadius };
+          }) };
+      });
+      questionCount += questions.length;
+      const resultNodes = [...doc.querySelectorAll('.mark_table,.newTestCon,.result-container')].filter(n => !n.closest(EXCLUDE) && visible(n) && !all.some(q => q.contains(n)));
+      docs.push({ level: depth, isTop: doc.defaultView === doc.defaultView.top, totalQuestionBlocks: all.length,
+        omittedQuestionBlocks: all.length - chosen.length, questions,
+        resultRegions: resultNodes.slice(0, 2).map(n => ({ ...describe(n), ...structuralHTML(n) })),
+        counts: { radio: doc.querySelectorAll('input[type="radio"]').length, checkbox: doc.querySelectorAll('input[type="checkbox"]').length,
+          unsupportedHint: /不支持的题型|未适配题型/.test(doc.body?.textContent || ''), readingResultHint: /读取成绩/.test(doc.body?.textContent || '') } });
+      for (const f of [...doc.querySelectorAll('iframe,frame')].slice(0, 30)) {
+        if (f.closest(EXCLUDE)) continue;
+        try { if (f.contentDocument?.body) visit(f.contentDocument, depth + 1); else inaccessibleFrames++; }
+        catch { inaccessibleFrames++; }
+      }
+    }
+    visit(document, 0);
+    return { schema: 'xxt-issue10-structure-v1', collectorVersion: '0.1.0', questionCount, inaccessibleFrames,
+      note: '只读结构快照。文本、输入内容、URL及处理函数参数隐藏；仅保留短题型代码。未自动采集跨域iframe；缺失时在题目子页的采集按钮导出，或使用备用选题采集。',
+      documents: docs };
+  }
+
+  const picked = typeof $0 === 'undefined' ? null : $0;
+  if (!picked || picked.nodeType !== 1 || picked.closest(EXCLUDE)) throw Error('请先在元素面板选中一道题，不要选学习助手。');
+  const pickedTarget = picked.closest(QUESTION) || picked;
+  if (pickedTarget.matches('body,html,form') || pickedTarget.querySelector(EXCLUDE)) throw Error('选取范围过大。请选仅包含一道题题干和所有选项的节点。');
+  const result = collect();
+  const output = JSON.stringify(result, null, 2);
+  if (typeof copy === 'function') { copy(output); console.log('结构已复制，请粘贴到记事本，检查后保存为txt发送。'); }
+  else { console.log(output); console.log('未找到剪贴板命令，请复制上方JSON文本。'); }
+})();
