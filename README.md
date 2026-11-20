@@ -1,6 +1,6 @@
 # 超星学习通 · 学习助手
 
-> **目前脚本最新版本为 1.8.0，请已安装脚本的用户尽快更新。** 从原仓库安装过的用户，请点「安装 / 更新脚本」覆盖原脚本并保留设置。覆盖后，后续更新会使用新仓库。
+> **目前脚本最新版本为 1.8.0，请已安装脚本的用户尽快更新。** 从原仓库安装过的用户，请点「一键安装 / 更新脚本」覆盖原脚本并保留设置。覆盖后，后续更新会使用新仓库。
 
 ![最新版本](https://img.shields.io/badge/正式版-1.8.0-267356?style=flat-square)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
@@ -14,7 +14,9 @@
 
 学习通弹出滑块、图片验证码或人脸验证时，面板会变色并提示手动处理。完成验证后，请手动继续。
 
-**[安装 / 更新脚本](https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js)** · **[打开使用手册](https://irisbud.github.io/xuexitong-ai-assistant/)** · [最新正式版](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest)
+[![一键安装 / 更新脚本](docs/readme/install.svg)](https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js)
+
+**[打开使用手册](https://irisbud.github.io/xuexitong-ai-assistant/)** · [最新正式版](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest)
 
 <a id="三步跑起来"></a>
 <a id="安装学习助手"></a>
@@ -27,7 +29,7 @@
 ## 先跑起来
 
 1. **装油猴。** 在 Chrome、Edge 等电脑浏览器安装 [Tampermonkey](https://www.tampermonkey.net/)，到扩展详情开启“允许用户脚本”。[看权限设置图](docs/getting-started/tampermonkey-permissions.png)
-2. **装脚本。** 点上面的“安装 / 更新脚本”，在油猴确认页点安装或更新。装好后刷新学习通页面。
+2. **装脚本。** 点上面的“一键安装 / 更新脚本”，在油猴确认页点安装或更新。装好后刷新学习通页面。
 3. **打开具体小节。** 进入课程 → 章节 → 点击“1.1”“1.2”这样的小节名称，右下角出现“学习助手”。课程首页和目录页没有学习面板。
 
 只看视频、读资料，选“不接入 AI”，直接点“开始自动”。需要辅助答题，先到“接口”区保存自己的模型配置，点“测试 AI”，通过后再开始。
