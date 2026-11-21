@@ -148,15 +148,21 @@
         if(current.some(Boolean)&&!replace)return false;
         if(entry.rows.length){
             const remove=replace&&entry.question.type==='multiple'?current.filter(key=>!expected.includes(key)):[];
-            const changes=[...remove.map(key=>[key,false]),...expected.filter(key=>!current.includes(key)).map(key=>[key,true])];
+            // Select the replacement before removing old choices. Removing the last
+            // choice first can leave the question blank or be rejected by the page.
+            const changes=[...expected.filter(key=>!current.includes(key)).map(key=>[key,true]),...remove.map(key=>[key,false])];
             const controls=changes.map(([key,checked])=>({key,checked,row:entry.rows[entry.question.options.findIndex(o=>o.key===key)]}));
             if(controls.some(({row})=>!enabled(row)))throw Error('原生答题选项已变化。');
             for(const {key,checked,row} of controls){
                 guard();
+                const before=read(entry);
+                if(!before||!enabled(row))throw Error('原生答题选项已变化。');
+                if(before.includes(key)===checked)continue;
+                if(!checked&&!expected.every(choice=>before.includes(choice)))throw Error('学习通未保留所有目标选项，请核对原生试卷。');
                 row.click();
                 for(let attempt=0;attempt<10&&read(entry)?.includes(key)!==checked;attempt++){await pause(70);guard();}
                 const updated=read(entry);
-                if(updated?.includes(key)!==checked)throw Error('页面未确认选项已更新。');
+                if(updated?.includes(key)!==checked)throw Error(`学习通未确认选项 ${key} 的变更，请核对原生试卷。`);
                 onWrite(updated);
             }
         } else {

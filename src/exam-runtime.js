@@ -389,7 +389,7 @@
         output=document.createElement('pre');
         const details=document.createElement('details');
         const summary=document.createElement('summary');summary.textContent='考试作答记录';details.append(summary);
-        status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:changed,onQuietChange:changed,studyControls:true,examCallbacks:{phase,start,change:changed,confirmReview}});
+        status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:changed,onQuietChange:changed,studyControls:true,examCallbacks:{phase,start,change:changed,confirmReview,reviewStatus:notice}});
         view=status.homeworkUI.exam;
         actions.querySelector('[data-action=stop]').onclick=()=>{cancelPreviewHandoff();stop();};
         actions.querySelector('[data-action=connect]').onclick=async event=>{

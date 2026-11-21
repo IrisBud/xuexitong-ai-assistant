@@ -8117,11 +8117,13 @@ startxref
                 if(!event.isTrusted)return;
                 const selected=values();
                 group.disabled=true;confirm.textContent='正在核对…';feedback.hidden=true;
+                callbacks.reviewStatus?.(`正在确认第 ${item.number} 题…`);
                 try {
                     await callbacks.confirmReview(item.id,selected);
                     if(!revealReview())review.querySelector(`[data-exam-reason-id="${item.id}"] strong`)?.focus({preventScroll:true});
                 } catch(error) {
                     feedback.textContent=error.message;feedback.hidden=false;
+                    callbacks.reviewStatus?.(`第 ${item.number} 题未确认。${error.message}`);
                 } finally {
                     group.disabled=false;confirm.textContent='确认作答';update();
                 }
@@ -9802,15 +9804,21 @@ startxref
         if(current.some(Boolean)&&!replace)return false;
         if(entry.rows.length){
             const remove=replace&&entry.question.type==='multiple'?current.filter(key=>!expected.includes(key)):[];
-            const changes=[...remove.map(key=>[key,false]),...expected.filter(key=>!current.includes(key)).map(key=>[key,true])];
+            // Select the replacement before removing old choices. Removing the last
+            // choice first can leave the question blank or be rejected by the page.
+            const changes=[...expected.filter(key=>!current.includes(key)).map(key=>[key,true]),...remove.map(key=>[key,false])];
             const controls=changes.map(([key,checked])=>({key,checked,row:entry.rows[entry.question.options.findIndex(o=>o.key===key)]}));
             if(controls.some(({row})=>!enabled(row)))throw Error('原生答题选项已变化。');
             for(const {key,checked,row} of controls){
                 guard();
+                const before=read(entry);
+                if(!before||!enabled(row))throw Error('原生答题选项已变化。');
+                if(before.includes(key)===checked)continue;
+                if(!checked&&!expected.every(choice=>before.includes(choice)))throw Error('学习通未保留所有目标选项，请核对原生试卷。');
                 row.click();
                 for(let attempt=0;attempt<10&&read(entry)?.includes(key)!==checked;attempt++){await pause(70);guard();}
                 const updated=read(entry);
-                if(updated?.includes(key)!==checked)throw Error('页面未确认选项已更新。');
+                if(updated?.includes(key)!==checked)throw Error(`学习通未确认选项 ${key} 的变更，请核对原生试卷。`);
                 onWrite(updated);
             }
         } else {
@@ -10232,7 +10240,7 @@ startxref
         output=document.createElement('pre');
         const details=document.createElement('details');
         const summary=document.createElement('summary');summary.textContent='考试作答记录';details.append(summary);
-        status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:changed,onQuietChange:changed,studyControls:true,examCallbacks:{phase,start,change:changed,confirmReview}});
+        status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:changed,onQuietChange:changed,studyControls:true,examCallbacks:{phase,start,change:changed,confirmReview,reviewStatus:notice}});
         view=status.homeworkUI.exam;
         actions.querySelector('[data-action=stop]').onclick=()=>{cancelPreviewHandoff();stop();};
         actions.querySelector('[data-action=connect]').onclick=async event=>{

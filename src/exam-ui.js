@@ -159,11 +159,13 @@
                 if(!event.isTrusted)return;
                 const selected=values();
                 group.disabled=true;confirm.textContent='正在核对…';feedback.hidden=true;
+                callbacks.reviewStatus?.(`正在确认第 ${item.number} 题…`);
                 try {
                     await callbacks.confirmReview(item.id,selected);
                     if(!revealReview())review.querySelector(`[data-exam-reason-id="${item.id}"] strong`)?.focus({preventScroll:true});
                 } catch(error) {
                     feedback.textContent=error.message;feedback.hidden=false;
+                    callbacks.reviewStatus?.(`第 ${item.number} 题未确认。${error.message}`);
                 } finally {
                     group.disabled=false;confirm.textContent='确认作答';update();
                 }

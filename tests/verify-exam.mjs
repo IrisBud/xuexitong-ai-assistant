@@ -48,7 +48,7 @@ async function setup(opts={}){
         const navigation=url.pathname===single&&opts.previewLink?previewControl.repeat(opts.ambiguousPreview?2:1):'';
         return route.fulfill({contentType:'text/html;charset=utf-8',body:url.pathname===result?'<p>交卷成功</p>':html+navigation});
     });
-    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway})=>{
+    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway,keepOneChoice})=>{
         window.unsafeWindow=window;
         const config={provider:'custom',protocol:'chat',model:'fixture',key:'fixture',baseUrl:'https://model.fixture.invalid/v1'};
         window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem('settings:'+key)||'null')??({'xxt-ai-enabled':true,'xxt-quiet-enabled':false,'xxt-ai-config':config,'xxt-ai-vision-enabled':vision||false,'xxt-ai-vision-config':config}[key]??fallback);
@@ -78,6 +78,18 @@ async function setup(opts={}){
         document.addEventListener('DOMContentLoaded',()=>{
             if(!document.querySelector('main'))return;
             const main=document.querySelector('main');
+            if(keepOneChoice){
+                const choices=main.children[1].querySelector('.stem_answer');
+                const fourth=choices.lastElementChild.cloneNode(true);
+                fourth.querySelector('.num_option').textContent='D';
+                fourth.querySelector('.answer_p').textContent='旧选项';
+                choices.append(fourth);
+                for(const row of choices.children){
+                    row.removeAttribute('aria-checked');
+                    row.querySelector('.num_option').className='saveMultiSelect num_option_dx';
+                }
+                fourth.setAttribute('aria-checked','true');
+            }
             if(uncertainEssay)main.children[2].querySelector('.colorShallow').textContent='简答题';
             for(let i=4;i<=3+(extraQuestions||0);i++){
                 const question=main.firstElementChild.cloneNode(true);
@@ -102,6 +114,8 @@ async function setup(opts={}){
                 if(classOnly)row.removeAttribute('aria-checked');
                 row.onclick=()=>{
                     if(refuseWrite&&row.closest('.questionLi')===main.children[1])return;
+                    if(keepOneChoice&&row.getAttribute('role')==='checkbox'&&selected(row)&&
+                        row.parentElement.querySelectorAll('[aria-checked=true]').length===1)return;
                     const checked=!selected(row);
                     const single=row.getAttribute('role')==='radio';
                     if(single)for(const item of row.parentElement.querySelectorAll('[role=radio]'))mark(item,false);
@@ -361,8 +375,30 @@ try {
         assert.equal(await confirm.isDisabled(),true);
         await card.getByRole('checkbox').first().check();
         await confirm.click();
-        await card.getByRole('status').getByText('页面未确认选项已更新。').waitFor();
+        await card.getByRole('status').getByText('学习通未确认选项 A 的变更，请核对原生试卷。').waitFor();
+        assert.match(await message(page).innerText(),/第 2 题未确认。学习通未确认选项 A 的变更/);
         assert.equal(await card.getAttribute('data-state'),'review');
+        assert.equal((await stats(page)).confirm,0);
+    });
+    await scenario('replace-last-native-selection-before-clearing-it',{keepOneChoice:true},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await waitText(page,'还有 1 题待复查');
+        const card=nthReview(page,2);
+        const native=page.locator('main [role=checkbox]');
+        const picked=()=>native.evaluateAll(rows=>rows.filter(row=>row.getAttribute('aria-checked')==='true').map(row=>row.querySelector('.num_option_dx').textContent));
+        assert.deepEqual(await picked(),['D']);
+        const choices=card.getByRole('checkbox');
+        for(const i of [0,1,2])await choices.nth(i).check();
+        await choices.nth(3).uncheck();
+        await card.getByRole('button',{name:'确认作答'}).click();
+        await page.waitForFunction(()=>{
+            const review=document.querySelector('[data-exam-reason-id="q-2"]');
+            return review?.dataset.state==='ready'||review?.querySelector('.xxt-exam-review-feedback:not([hidden])');
+        });
+        assert.deepEqual(await picked(),['A','B','C']);
+        assert.equal(await card.getAttribute('data-state'),'ready');
+        assert.equal(await page.locator('[data-exam-goto-review]').isVisible(),false);
         assert.equal((await stats(page)).confirm,0);
     });
     await scenario('essay-review-explains-scoring-and-awaits-manual-confirmation',{uncertainEssay:true},async page=>{
