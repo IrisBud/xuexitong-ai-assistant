@@ -37,7 +37,11 @@ async function scenario({name,mode=90,cross=false,nested=false,green=true,audio=
    await page.screenshot({path:new URL('homework-beta.png',out).pathname.replace(/^\/(\w:)/,'$1')});
    await page.locator('[data-choice-group="学习板块"][data-choice="chapter"]').click();
    await page.reload();assert.equal(await page.locator('[data-setting="video-advance"]').inputValue(),'90');assert.equal(await page.locator('[data-setting="playback-rate"]').inputValue(),'1.2');
-   assert.equal(await page.locator('[data-choice="exam"]').count(),0);
+   const examTab=page.locator('[data-homework-modes] [data-choice="exam"]');
+   assert.equal(await examTab.count(),1);
+   await examTab.click();
+   assert(await page.locator('[data-exam-beta]').getByText('考试功能 · 测试版').isVisible());
+   await page.locator('[data-homework-modes] [data-choice="chapter"]').click();
    await page.screenshot({path:new URL('chapter-policy.png',out).pathname.replace(/^\/(\w:)/,'$1')});
    observations.push({name,settingsPersist:true,speeds:[1.1,1.2],homeworkBeta:true,errors});await ctx.close();return;
   }

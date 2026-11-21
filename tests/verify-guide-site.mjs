@@ -21,7 +21,7 @@ for(const file of htmlFiles){
   if(url.hash){const text=await readFile(path,'utf8'),id=decodeURIComponent(url.hash.slice(1));assert(text.includes(`id="${id}"`),`Missing anchor ${value} from ${file}`);}
  }
 }
-const readme=await readFile(resolve(root,'README.md'),'utf8');assert(readme.split('\n').length<120);assert(readme.includes('目前脚本最新版本为 '+JSON.parse(await readFile(resolve(root,'package.json'),'utf8')).version+'，请已安装脚本的用户尽快更新'));assert(readme.includes('https://irisbud.github.io/xuexitong-ai-assistant/'));assert(!/TODO|Lorem ipsum|待补链接/.test(readme));
+const readme=await readFile(resolve(root,'README.md'),'utf8');assert(readme.split('\n').length<120);const {version,channel}=JSON.parse(await readFile(resolve(root,'src/release.json'),'utf8'));assert(readme.includes(channel==='candidate'?'当前文件是本地候选 '+version:'目前脚本最新版本为 '+version+'，请已安装脚本的用户尽快更新'));assert(readme.includes('https://irisbud.github.io/xuexitong-ai-assistant/'));assert(!/TODO|Lorem ipsum|待补链接/.test(readme));
 const browser=await chromium.launch({headless:true}),results=[],errors=[];
 async function check(name,run){const started=Date.now();await run();results.push({name,passed:true,ms:Date.now()-started});console.log('PASS',name);}
 async function pageAt(context,path=''){

@@ -16,6 +16,11 @@
         for(const c of value){a=Math.imul(a^c.charCodeAt(0),16777619);b=Math.imul(b^c.charCodeAt(0),2246822519);}
         return [a,b].map(n=>(n>>>0).toString(16).padStart(8,'0')).join('');
     };
+    function pageKey(value) {
+        const url=new URL(value);
+        url.hash='';
+        return digest(url.href);
+    }
     function phase(url = new URL(location.href)) {
         if(openPath.test(url.pathname))return 'paper';
         if(activePath.test(url.pathname))return 'single';
@@ -36,6 +41,19 @@
     const submit = () => one(submitSelector,'交卷');
     const confirm = () => one(confirmSelector,'确定');
     const dialog = () => [...document.querySelectorAll(dialogSelector)].some(available);
+    function preview() {
+        if(phase()!=='single')return null;
+        const control=one('a,button,[role="button"],[onclick]','整卷预览');
+        if(!control||control.closest('.questionLi,[role="alertdialog"],#topicNumberScroll'))return null;
+        const target=control.getAttribute('target');
+        if(target&&target.toLowerCase()!=='_self')return null;
+        const href=control.getAttribute('href')?.trim();
+        if(href&&!href.startsWith('#')&&!/^javascript:/i.test(href)){
+            const destination=new URL(href,location.href);
+            if(destination.origin!==location.origin||phase(destination)!=='paper')return null;
+        }
+        return control;
+    }
 
     function scan(doc = document) {
         return [...doc.querySelectorAll('.questionLi')].filter(node=>available(node)&&!node.parentElement?.closest('.questionLi,[data-xxt-codex-panel]')).map((element,index)=>{
@@ -71,15 +89,22 @@
     }
 
     function read(entry) {
-        if(entry.question.type==='unsupported')return null;
+        if(entry.question.type==='unsupported'||!entry.element.isConnected)return null;
         if(entry.rows.length){
-            if(entry.rows.some(row=>!['true','false'].includes(row.getAttribute('aria-checked'))))return null;
-            return entry.rows.flatMap((row,i)=>row.getAttribute('aria-checked')==='true'?[entry.question.options[i].key]:[]).sort();
+            if(entry.rows.some(row=>!entry.element.contains(row)))return null;
+            try {
+                return entry.rows.flatMap((row,i)=>XxtCodexDom.selected(row)?[entry.question.options[i].key]:[]).sort();
+            } catch {
+                return null;
+            }
         }
+        if(entry.fields.some(field=>!entry.element.contains(field)))return null;
         return entry.fields.map(field=>field.value.trim());
     }
     const same = (left,right) => JSON.stringify(left)===JSON.stringify(right);
-    const target = (entry,answer) => (entry.rows.length?answer.choices:answer.texts)?.map(value=>value.trim());
+    const target = (entry,answer) => entry.rows.length
+        ? answer.choices?.map(value=>value.trim()).sort()
+        : answer.texts?.map(value=>value.trim());
     const matches = (entry,answer) => !!answer && same(read(entry),target(entry,answer));
     const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
     async function fill(entry,answer,guard){
@@ -121,5 +146,5 @@
         const control=node?.closest?.(`${submitSelector},${confirmSelector}`);
         return Boolean(control && /^(交卷|确定)$/.test(plain(control)));
     }
-    globalThis.XxtExamDom={phase,scope,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl};
+    globalThis.XxtExamDom={phase,scope,preview,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl,pageKey};
 })();

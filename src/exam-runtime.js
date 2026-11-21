@@ -7,15 +7,31 @@
     if(!phase||typeof GM_getValue!=='function')return;
     const initialUrl=location.href, {key,identified}=D.scope();
     const clockKey=`xxt-exam-start:${key}`, pendingKey=`xxt-exam-pending:${key}`, reportKey=`xxt-exam-report:${key}`;
+    const transferKey='xxt-exam-preview-handoff';
+    function takePreviewHandoff(){
+        if(phase!=='paper')return null;
+        const raw=sessionStorage.getItem(transferKey);
+        if(!raw)return null;
+        sessionStorage.removeItem(transferKey);
+        try {
+            const transfer=JSON.parse(raw), now=Date.now(), from=new URL(document.referrer);
+            if(from.origin!==location.origin||D.phase(from)!=='single'||D.pageKey(from.href)!==transfer.source)return null;
+            if(transfer.identified&&identified&&transfer.key!==key)return null;
+            if(!(transfer.startedAt>0&&transfer.startedAt<=transfer.issuedAt&&transfer.issuedAt<=now&&now-transfer.issuedAt<=20000))return null;
+            return transfer;
+        } catch {return null;}
+    }
+    const handoff=takePreviewHandoff();
     const savedStart=Number(sessionStorage.getItem(clockKey));
-    const startTime=Number.isFinite(savedStart)&&savedStart>0&&savedStart<=Date.now()?savedStart:Date.now();
+    const now=Date.now();
+    const startTime=Math.min(savedStart>0&&savedStart<=now?savedStart:now,handoff?.startedAt??now);
     if(phase!=='result')sessionStorage.setItem(clockKey,String(startTime));
     const capturedAt=performance.now();
     const elapsedAtLoad=Date.now()-startTime;
     const msRemaining=minutes=>Math.max(0,minutes*60000-elapsedAtLoad-(performance.now()-capturedAt));
     const waiting=()=>new Promise(resolve=>setTimeout(resolve,140));
     const readReport=()=>GM_getValue(reportKey,null);
-    let panel, status, view, output, job, activeTest, humanHold=false, unloaded=false;
+    let panel, status, view, output, job, activeTest, openingPreview, previewTimeout, humanHold=false, unloaded=false;
     function notice(text){if(output&&output.textContent!==text)output.textContent=text;}
     const policy=()=>view?.policy()||{...XxtExamUI.load(),minutesValid:true,files:[]};
     const pending=()=>sessionStorage.getItem(pendingKey)==='1'||(identified&&readReport()?.submitted===true);
@@ -26,6 +42,24 @@
         const test=activeTest;activeTest=null;
         test?.abort();
         notice(text);
+    }
+    function cancelPreviewHandoff(){
+        if(!openingPreview)return;
+        clearTimeout(previewTimeout);
+        if(sessionStorage.getItem(transferKey)===openingPreview)sessionStorage.removeItem(transferKey);
+        openingPreview=null;
+    }
+    function openPaper(){
+        const control=D.preview();
+        if(!control){notice('未找到唯一可用的「整卷预览」，请点平台顶部入口后再开始。');return;}
+        openingPreview=JSON.stringify({source:D.pageKey(initialUrl),key,identified,startedAt:startTime,issuedAt:Date.now()});
+        sessionStorage.setItem(transferKey,openingPreview);
+        notice('正在打开学习通整卷预览…');
+        previewTimeout=setTimeout(()=>{
+            cancelPreviewHandoff();
+            notice('未进入整卷预览，请点平台顶部入口后再开始。');
+        },8000);
+        control.click();
     }
     function check(subject){
         if(job!==subject||unloaded)throw Error('考试辅助已停止。');
@@ -124,13 +158,22 @@
         confirm.click();
         notice('已点击平台确认交卷，等待学习通回执。若页面未跳转，请先核对提交状态。');
     }
-    async function execute(subject, settings, readOnly){
+    async function execute(subject, settings, readOnly, fromPreview){
         check(subject);
-        const entries=D.scan();
+        if(XxtFonts?.prepare)await XxtFonts.prepare(document,()=>check(subject));
+        let entries=D.scan();
+        if(fromPreview){
+            for(let i=0;i<24;i++){
+                const count=D.count();
+                if(entries.length&&(count===null||count===entries.length))break;
+                await waiting();
+                check(subject);
+                entries=D.scan();
+            }
+        }
         if(!entries.length||entries.length>XxtCodexCore.pageQuestionLimit)throw Error('整卷题目未就绪或超过 256 题。');
         if(D.count()!==null&&D.count()!==entries.length)throw Error('页面题量与已显示题数不一致，请展开全部试题。');
         const full=snapshot(entries), prior=entries.map(D.read);
-        if(XxtFonts?.prepare)await XxtFonts.prepare(document,()=>check(subject));
         const {rows,answers}=await solve(entries,subject,settings);
         check(subject);
         const items=entries.map(({question:q})=>rows.get(q.id)||viewItem(q,null,'这一题没有返回可用结果。'));
@@ -150,7 +193,7 @@
                 check(subject);
                 item.review=true;item.explanation+='\n'+error.message;
                 writeReport(items,subject.at);
-                throw error;
+                throw Error('第 '+entry.question.number+' 题：'+error.message);
             }
         }
         writeReport(items,subject.at);
@@ -160,29 +203,31 @@
         else notice(`已核对 ${filled} 题，请查看作答理由并手动交卷。`);
     }
 
-    async function start(readOnly){
-        if(phase!=='paper'){notice('请从最后一题进入整卷预览后开始。');return;}
+    async function start(readOnly,fromPreview=false){
+        if(phase==='result'||(phase==='single'&&readOnly)){notice('请在整卷预览页生成答案。');return;}
         if(D.dialog()){notice('请先关闭学习通的交卷确认窗口。');return;}
-        if(job){notice('本卷正在处理，可点击停止。');return;}
+        if(job||openingPreview){notice('本卷正在处理，可点击停止。');return;}
         if(activeTest){notice('请等 AI 连接测试结束后再开始。');return;}
         const settings=policy();
         if(settings.importing||!settings.minutesValid){notice('请等资料读取完成，并核对最早交卷时间。');return;}
-        if(settings.strong&&!settings.files.length){notice('请先导入知识文件，或取消勾选强相关。');return;}
+        if(phase==='paper'&&settings.strong&&!settings.files.length){notice('请先导入知识文件，或取消勾选强相关。');return;}
         if(pending()&&!readOnly&&settings.answer==='auto'){notice('本卷已有交卷请求，先核对平台回执。');return;}
         if(!GM_getValue('xxt-ai-enabled',!!XxtAi.load().key)){notice('请先在接口页选择并配置 AI。');return;}
         if(XxtManualVerification.kind()){notice('请先手动处理学习通验证。');return;}
         humanHold=false;status.setVerification('');
         const subject={at:Date.now()};job=subject;
         try {
+            check(subject);
+            if(phase==='single'){openPaper();return;}
             if(navigator.locks)await navigator.locks.request(`xxt:exam:${key}`,{ifAvailable:true},async lock=>{
                 if(!lock)throw Error('另一个页面正在处理同一份试卷。');
-                await execute(subject,settings,readOnly);
+                await execute(subject,settings,readOnly,fromPreview);
             });
-            else await execute(subject,settings,readOnly);
-        } catch(error){if(job===subject)notice(error.message);}
+            else await execute(subject,settings,readOnly,fromPreview);
+        } catch(error){if(job===subject){cancelPreviewHandoff();notice(error.message);}}
         finally{if(job===subject)job=null;}
     }
-    function changed(){if(job||activeTest)stop('考试设置已变，当前操作停止。需要时请重新开始。');}
+    function changed(){if(job||activeTest||openingPreview){cancelPreviewHandoff();stop('考试设置已变，当前操作停止。需要时请重新开始。');}}
     function mount(){
         panel=document.createElement('section');panel.dataset.xxtCodexPanel='true';panel.dataset.xxtExamPage=phase;
         panel.setAttribute('aria-label','学习助手考试面板');
@@ -196,9 +241,9 @@
         const summary=document.createElement('summary');summary.textContent='考试作答记录';details.append(summary);
         status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:changed,onQuietChange:changed,studyControls:true,examCallbacks:{phase,start,change:changed}});
         view=status.homeworkUI.exam;
-        actions.querySelector('[data-action=stop]').onclick=()=>stop();
+        actions.querySelector('[data-action=stop]').onclick=()=>{cancelPreviewHandoff();stop();};
         actions.querySelector('[data-action=connect]').onclick=async event=>{
-            if(job||activeTest||XxtManualVerification.kind())return;
+            if(job||activeTest||openingPreview||XxtManualVerification.kind())return;
             const button=event.currentTarget;button.disabled=true;
             const test=XxtAi.request('/test-selected',{});activeTest=test;
             try {const result=await test.promise;if(activeTest===test)XxtAssistantTheme.testResult(button,result);}
@@ -208,11 +253,11 @@
         document.body.append(panel);
         const previous=readReport();
         if(previous)view.renderReport(previous);
-        notice(phase==='paper'?'选择作答与交卷方式，再开始本卷。':phase==='result'?'交卷结果以学习通回执为准。':'当前为逐题答题页。请在最后一题进入整卷预览。');
+        notice(phase==='paper'?'选择作答与交卷方式，再开始本卷。':phase==='result'?'交卷结果以学习通回执为准。':'点击「开始考试辅助」可打开整卷预览。');
     }
     function sync(){
         const type=XxtManualVerification.kind();
-        if(type&&!humanHold){humanHold=true;stop(XxtManualVerification.action(type));}
+        if(type&&!humanHold){humanHold=true;cancelPreviewHandoff();stop(XxtManualVerification.action(type));}
         status.setVerification(type||(humanHold?'waiting':''),'开始考试辅助');
         panel.toggleAttribute('data-xxt-exam-dialog',D.dialog());
         view.showGate(msRemaining(policy().minutes));
@@ -241,5 +286,6 @@
     window.addEventListener('blur',foreground);document.addEventListener('visibilitychange',foreground);
     document.addEventListener('xxt-profiles-changed',changed);
     document.addEventListener('xxt-platform-settings-changing',changed);
-    window.addEventListener('pagehide',()=>{unloaded=true;observer.disconnect();clearInterval(timer);stop();},{once:true});
+    window.addEventListener('pagehide',()=>{unloaded=true;clearTimeout(previewTimeout);observer.disconnect();clearInterval(timer);stop();},{once:true});
+    if(handoff&&!humanHold)void start(false,true);
 })();

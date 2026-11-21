@@ -40,8 +40,14 @@ const outcomes=[];
 async function setup(opts={}){
     const context=await browser.newContext({acceptDownloads:true,viewport:opts.viewport||{width:1260,height:970}});
     const errors=[];
-    await context.route('**/*',route=>route.fulfill({contentType:'text/html;charset=utf-8',body:route.request().url().includes(result)?'<p>交卷成功</p>':html}));
-    await context.addInitScript(({uncertain,latency,receipt,questionCount,image,vision})=>{
+    await context.route('**/*',route=>{
+        const url=new URL(route.request().url());
+        const id=opts.differentPreview?'other-attempt':'fixture';
+        const previewControl='<a href="'+preview+'?examAnswerId='+id+'">整卷预览</a>';
+        const navigation=url.pathname===single&&opts.previewLink?previewControl.repeat(opts.ambiguousPreview?2:1):'';
+        return route.fulfill({contentType:'text/html;charset=utf-8',body:url.pathname===result?'<p>交卷成功</p>':html+navigation});
+    });
+    await context.addInitScript(({uncertain,latency,receipt,questionCount,image,vision,classOnly})=>{
         window.unsafeWindow=window;
         const config={provider:'custom',protocol:'chat',model:'fixture',key:'fixture',baseUrl:'https://model.fixture.invalid/v1'};
         window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem('settings:'+key)||'null')??({'xxt-ai-enabled':true,'xxt-quiet-enabled':false,'xxt-ai-config':config,'xxt-ai-vision-enabled':vision||false,'xxt-ai-vision-config':config}[key]??fallback);
@@ -70,12 +76,21 @@ async function setup(opts={}){
                 event.preventDefault();counters.confirm++;modal.hidden=true;
                 if(receipt)location.href='/exam-ans/exam/test/look'+location.search;
             };
-            for(const row of document.querySelectorAll('.answerBg'))row.onclick=()=>{
-                const prior=row.getAttribute('aria-checked');
-                if(row.getAttribute('role')==='radio')for(const s of row.parentElement.querySelectorAll('[role=radio]'))s.setAttribute('aria-checked','false');
-                row.setAttribute('aria-checked',row.getAttribute('role')==='radio'||prior==='false'?'true':'false');
-                counters.fill++;
-            };
+            const selected=row=>classOnly?row.querySelector('.num_option').classList.contains('check_answer'):row.getAttribute('aria-checked')==='true';
+            function mark(row,checked){
+                if(classOnly)row.querySelector('.num_option').classList.toggle('check_answer',checked);
+                else row.setAttribute('aria-checked',String(checked));
+            }
+            for(const row of document.querySelectorAll('.answerBg')){
+                if(classOnly)row.removeAttribute('aria-checked');
+                row.onclick=()=>{
+                    const checked=!selected(row);
+                    const single=row.getAttribute('role')==='radio';
+                    if(single)for(const item of row.parentElement.querySelectorAll('[role=radio]'))mark(item,false);
+                    mark(row,single||checked);
+                    counters.fill++;
+                };
+            }
             document.querySelector('main input').addEventListener('input',()=>counters.text++);
         });
     },opts);
@@ -125,6 +140,9 @@ try {
         assert.deepEqual([checked.fill,checked.text,checked.confirm],[0,0,0]);
         const review=page.locator('[data-exam-review]');assert.equal(await review.locator('[data-state=review]').count(),1);
         assert.match(await review.innerText(),/待复查/);assert.match(await review.innerText(),/样例术语/);
+        assert.match(await review.innerText(),/AI 自评 95%/);
+        assert.match(await page.locator('[data-exam-confidence-note]').innerText(),/不能代表正确率或得分/);
+        assert.match(await page.locator('[data-exam-usage]').innerText(),/作者不对此负责/);
         await review.scrollIntoViewIfNeeded();
         await page.screenshot({path:resolve(out,'desktop-review.png')});
         const downloadEvent=page.waitForEvent('download');await page.locator('[data-exam-export]').click();const download=await downloadEvent;
@@ -180,9 +198,39 @@ try {
         await page.locator('[data-exam-review] [data-state=ready]').first().waitFor();
         assert.equal(await page.locator('[data-exam-review] [data-state=ready]').count(),3);
     });
-    await scenario('do-not-resolve-in-single-question-view',{single:true},async page=>{
+    await scenario('class-only-choice-controls-can-be-filled',{classOnly:true},async page=>{
+        await choice(page,'answer-auto').click();await start(page);await waitText(page,'请查看作答理由并手动交卷');
+        assert.equal(await page.locator('.answerBg[aria-checked]').count(),0);
+        assert.equal(await page.locator('.check_answer').count(),3);
+        assert.deepEqual([(await stats(page)).fill,(await stats(page)).confirm],[3,0]);
+    });
+    await scenario('class-only-manual-choice-is-preserved',{classOnly:true},async page=>{
+        await page.locator('main .answerBg').nth(1).click();
+        await choice(page,'answer-auto').click();await start(page);await waitText(page,'自动交卷已停止');
+        assert(await page.locator('main .answerBg').nth(1).locator('.check_answer').count());
+        assert.match(await page.locator('[data-exam-review]').innerText(),/保留人工答案/);
+    });
+    await scenario('one-start-opens-native-preview-and-resumes-same-attempt',{single:true,previewLink:true,classOnly:true},async page=>{
         assert.equal(await page.locator('[data-exam-files]').isDisabled(),true);
-        await start(page);await waitText(page,'整卷预览');assert.equal((await stats(page)).models,0);
+        await choice(page,'answer-auto').click();
+        await Promise.all([page.waitForURL('**/preview?*'),start(page)]);
+        await page.addScriptTag({content:bundle});
+        await waitText(page,'请查看作答理由并手动交卷');
+        assert.deepEqual([(await stats(page)).models,(await stats(page)).fill,(await stats(page)).confirm],[1,3,0]);
+        assert.equal(await page.evaluate(()=>sessionStorage.getItem('xxt-exam-preview-handoff')),null);
+    });
+    await scenario('preview-handoff-does-not-run-on-different-attempt',{single:true,previewLink:true,differentPreview:true},async page=>{
+        await choice(page,'answer-auto').click();
+        await Promise.all([page.waitForURL('**/preview?*'),start(page)]);
+        await page.addScriptTag({content:bundle});
+        await waitText(page,'选择作答与交卷方式');
+        assert.equal((await stats(page)).models,0);
+        assert.equal(await page.evaluate(()=>sessionStorage.getItem('xxt-exam-preview-handoff')),null);
+    });
+    await scenario('ambiguous-preview-and-read-only-single-do-not-navigate',{single:true,previewLink:true,ambiguousPreview:true},async page=>{
+        await start(page,'solve');await waitText(page,'请在整卷预览页生成答案');
+        await start(page);await waitText(page,'未找到唯一可用');
+        assert(page.url().includes(single));assert.equal((await stats(page)).models,0);
     });
     await scenario('paper-count-mismatch-does-not-write',{questionCount:6},async page=>{
         await start(page);await waitText(page,'题量与已显示题数不一致');assert.equal((await stats(page)).models,0);

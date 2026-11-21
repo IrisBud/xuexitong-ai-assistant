@@ -20,8 +20,8 @@
         return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     };
     function plainReport(report){
-        return ['考试作答理由',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
-            const confidence=item.confidence===null?'':` · 模型确定度 ${Math.round(100*item.confidence)}%`;
+        return ['考试作答理由','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的题会标为待复查。',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
+            const confidence=item.confidence===null?'':` · AI 自评 ${Math.round(100*item.confidence)}%`;
             return [`第 ${item.number} 题${item.review?' · 待复查':''}${confidence}${item.image?' · 含图':''}`,item.stem,
                 item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.explanation].filter(Boolean).join('\n');
         })].filter(Boolean).join('\n\n');
@@ -31,7 +31,8 @@
         section.dataset.examOptions='true';section.hidden=true;
         let settings=load(), minutesValid=true, files=[], report=null, importing=false;
         const flag=el('p',null,'xxt-exam-context');
-        flag.textContent=onPaper?'AI 会处理当前整卷预览。':phase==='result'?'查看本卷保存在本机的作答理由。':'在学习通打开试卷，从最后一题点「下一步」进入整卷预览。';
+        flag.textContent=onPaper?'AI 会处理当前整卷预览。':phase==='result'?'查看本卷保存在本机的作答理由。':'在学习通打开试卷，点击「开始考试辅助」进入整卷预览。';
+        const usage=el('p','考试功能原为俗称「水课」的课程练习和获准使用 AI 的测验开发。请遵守校方及任课教师的考试规则。违反规则使用时，因被检测、成绩处理或纪律处分产生的后果由使用者自行承担，作者不对此负责。','xxt-exam-muted');usage.dataset.examUsage='true';
         const mode=el('section',null,'xxt-exam-group');mode.append(el('h3','答题与交卷'));
         const submitHint=el('p',null,'xxt-exam-muted');
         function choice(label,key,choices){
@@ -110,8 +111,9 @@
         const reviewSection=el('section',null,'xxt-exam-group'), reviewHead=el('div',null,'xxt-exam-review-head');
         const exportButton=button('导出理由');exportButton.dataset.examExport='true';exportButton.disabled=true;
         const progress=el('p',null,'xxt-exam-muted');progress.setAttribute('role','status');
+        const confidenceNote=el('p','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的题会标为待复查。','xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
         const review=el('div',null,'xxt-exam-review');review.dataset.examReview='true';review.setAttribute('role','region');review.setAttribute('aria-label','作答理由和待复查题目');review.tabIndex=0;
-        reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,progress,review);
+        reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,confidenceNote,progress,review);
         exportButton.onclick=()=>{
             if(!report?.items.length)return;
             const url=URL.createObjectURL(new Blob(['\ufeff',plainReport(report)],{type:'text/plain;charset=utf-8'}));
@@ -128,7 +130,7 @@
                 const row=el('article',null,'xxt-exam-reason');row.dataset.state=item.review?'review':'ready';
                 const head=el('div',null,'xxt-exam-reason-head');head.append(el('strong',`第 ${item.number} 题`));
                 if(item.review)head.append(el('span','待复查','xxt-exam-review-label'));
-                if(item.confidence!==null)head.append(el('span',`${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
+                if(item.confidence!==null)head.append(el('span',`AI 自评 ${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
                 const answer=el('p',item.answer||'未生成可用答案','xxt-exam-answer');
                 answer.setAttribute('aria-label',`建议答案 ${item.answer||'未生成'}`);
                 row.append(head,el('p',item.stem,'xxt-exam-stem'),answer,el('p',item.explanation));review.append(row);
@@ -150,7 +152,7 @@
             if(pane&&!pane.hidden&&!section.hidden&&reviewHead.getClientRects().length)pane.scrollTop+=reviewHead.getBoundingClientRect().top-pane.getBoundingClientRect().top;
         };
         persist(false);renderReport(null);
-        section.append(flag,mode,materials,reviewSection);host.append(section);
+        section.append(flag,usage,mode,materials,reviewSection);host.append(section);
         return {section,policy:()=>({...settings,minutesValid,importing,files:[...files]}),renderReport,revealReport,showGate};
     }
     globalThis.XxtExamUI={mount,load};

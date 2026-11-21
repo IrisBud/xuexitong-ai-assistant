@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通自动化脚本（支持接入各种主流AI模型api）
 // @namespace    xuexitong-ai-assistant.public
-// @version      1.8.0
+// @version      1.8.1
 // @description  视频、文献与学习练习辅助；自配 AI API；不含任何密钥
 // @supportURL   https://github.com/IrisBud/xuexitong-ai-assistant/issues
 // @updateURL    https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js
@@ -22,7 +22,7 @@
 // ==/UserScript==
 
 (() => { const module = undefined, exports = undefined, define = undefined;
-globalThis.XxtRelease = {"version":"1.8.0","date":"2026-11-20","channel":"stable","changes":["新增「考试」测试版。支持导入知识文件、提高资料权重、查看和导出逐题理由，并标记待复查题。","可选择 AI 作答或手动填写、自动或手动交卷，并设置最早交卷时间。","加入课程讨论辅助，以及滑块、图片验证码和人脸验证的整板人工处理提醒。"]};
+globalThis.XxtRelease = {"version":"1.8.1","date":"2026-11-21","channel":"candidate","changes":["在逐题答题页点击「开始考试辅助」，可进入学习通整卷预览并继续处理同一份试卷。","修复整卷预览部分选项缺少可访问性状态时无法确认作答的问题。","考试面板增加适用范围说明，并标明每题的 AI 自评确定度。"]};
 /* Exact origins approved in the script manager's private storage, never by page messages. */
 (function (root) {
     'use strict';
@@ -5756,7 +5756,7 @@ return {Typr,md5:this.md5};
 /* Official model catalog. Refresh sources and capabilities before every release. */
 (function (root) {
     'use strict';
-    const verifiedAt = '2026-11-20', release = '1.8.0';
+    const verifiedAt = '2026-11-21', release = '1.8.1';
     const rows = (ids, profile = '', vision = null) => ids.map(id => ({ id, profile, vision }));
     const providers = {
         openai: { sources: ['https://developers.openai.com/api/docs/models','https://developers.openai.com/api/docs/changelog','https://developers.openai.com/api/docs/deprecations','https://developers.openai.com/api/docs/guides/latest-model','https://developers.openai.com/api/docs/guides/reasoning','https://developers.openai.com/api/docs/models/gpt-6.2-astra','https://developers.openai.com/api/docs/models/gpt-6.2-sol','https://developers.openai.com/api/docs/models/gpt-6-sol','https://developers.openai.com/api/docs/models/gpt-6.1-terra'], models: rows(['gpt-6.2-astra','gpt-6.2-sol','gpt-6-astra','gpt-6.1-sol'], 'openai', true).concat(rows(['gpt-6.1-terra','gpt-6-sol','gpt-6-luna'], 'openai-none', true)) },
@@ -7969,8 +7969,8 @@ startxref
         return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     };
     function plainReport(report){
-        return ['考试作答理由',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
-            const confidence=item.confidence===null?'':` · 模型确定度 ${Math.round(100*item.confidence)}%`;
+        return ['考试作答理由','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的题会标为待复查。',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
+            const confidence=item.confidence===null?'':` · AI 自评 ${Math.round(100*item.confidence)}%`;
             return [`第 ${item.number} 题${item.review?' · 待复查':''}${confidence}${item.image?' · 含图':''}`,item.stem,
                 item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.explanation].filter(Boolean).join('\n');
         })].filter(Boolean).join('\n\n');
@@ -7980,7 +7980,8 @@ startxref
         section.dataset.examOptions='true';section.hidden=true;
         let settings=load(), minutesValid=true, files=[], report=null, importing=false;
         const flag=el('p',null,'xxt-exam-context');
-        flag.textContent=onPaper?'AI 会处理当前整卷预览。':phase==='result'?'查看本卷保存在本机的作答理由。':'在学习通打开试卷，从最后一题点「下一步」进入整卷预览。';
+        flag.textContent=onPaper?'AI 会处理当前整卷预览。':phase==='result'?'查看本卷保存在本机的作答理由。':'在学习通打开试卷，点击「开始考试辅助」进入整卷预览。';
+        const usage=el('p','考试功能原为俗称「水课」的课程练习和获准使用 AI 的测验开发。请遵守校方及任课教师的考试规则。违反规则使用时，因被检测、成绩处理或纪律处分产生的后果由使用者自行承担，作者不对此负责。','xxt-exam-muted');usage.dataset.examUsage='true';
         const mode=el('section',null,'xxt-exam-group');mode.append(el('h3','答题与交卷'));
         const submitHint=el('p',null,'xxt-exam-muted');
         function choice(label,key,choices){
@@ -8059,8 +8060,9 @@ startxref
         const reviewSection=el('section',null,'xxt-exam-group'), reviewHead=el('div',null,'xxt-exam-review-head');
         const exportButton=button('导出理由');exportButton.dataset.examExport='true';exportButton.disabled=true;
         const progress=el('p',null,'xxt-exam-muted');progress.setAttribute('role','status');
+        const confidenceNote=el('p','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的题会标为待复查。','xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
         const review=el('div',null,'xxt-exam-review');review.dataset.examReview='true';review.setAttribute('role','region');review.setAttribute('aria-label','作答理由和待复查题目');review.tabIndex=0;
-        reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,progress,review);
+        reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,confidenceNote,progress,review);
         exportButton.onclick=()=>{
             if(!report?.items.length)return;
             const url=URL.createObjectURL(new Blob(['\ufeff',plainReport(report)],{type:'text/plain;charset=utf-8'}));
@@ -8077,7 +8079,7 @@ startxref
                 const row=el('article',null,'xxt-exam-reason');row.dataset.state=item.review?'review':'ready';
                 const head=el('div',null,'xxt-exam-reason-head');head.append(el('strong',`第 ${item.number} 题`));
                 if(item.review)head.append(el('span','待复查','xxt-exam-review-label'));
-                if(item.confidence!==null)head.append(el('span',`${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
+                if(item.confidence!==null)head.append(el('span',`AI 自评 ${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
                 const answer=el('p',item.answer||'未生成可用答案','xxt-exam-answer');
                 answer.setAttribute('aria-label',`建议答案 ${item.answer||'未生成'}`);
                 row.append(head,el('p',item.stem,'xxt-exam-stem'),answer,el('p',item.explanation));review.append(row);
@@ -8099,7 +8101,7 @@ startxref
             if(pane&&!pane.hidden&&!section.hidden&&reviewHead.getClientRects().length)pane.scrollTop+=reviewHead.getBoundingClientRect().top-pane.getBoundingClientRect().top;
         };
         persist(false);renderReport(null);
-        section.append(flag,mode,materials,reviewSection);host.append(section);
+        section.append(flag,usage,mode,materials,reviewSection);host.append(section);
         return {section,policy:()=>({...settings,minutesValid,importing,files:[...files]}),renderReport,revealReport,showGate};
     }
     globalThis.XxtExamUI={mount,load};
@@ -9515,6 +9517,11 @@ startxref
         for(const c of value){a=Math.imul(a^c.charCodeAt(0),16777619);b=Math.imul(b^c.charCodeAt(0),2246822519);}
         return [a,b].map(n=>(n>>>0).toString(16).padStart(8,'0')).join('');
     };
+    function pageKey(value) {
+        const url=new URL(value);
+        url.hash='';
+        return digest(url.href);
+    }
     function phase(url = new URL(location.href)) {
         if(openPath.test(url.pathname))return 'paper';
         if(activePath.test(url.pathname))return 'single';
@@ -9535,6 +9542,19 @@ startxref
     const submit = () => one(submitSelector,'交卷');
     const confirm = () => one(confirmSelector,'确定');
     const dialog = () => [...document.querySelectorAll(dialogSelector)].some(available);
+    function preview() {
+        if(phase()!=='single')return null;
+        const control=one('a,button,[role="button"],[onclick]','整卷预览');
+        if(!control||control.closest('.questionLi,[role="alertdialog"],#topicNumberScroll'))return null;
+        const target=control.getAttribute('target');
+        if(target&&target.toLowerCase()!=='_self')return null;
+        const href=control.getAttribute('href')?.trim();
+        if(href&&!href.startsWith('#')&&!/^javascript:/i.test(href)){
+            const destination=new URL(href,location.href);
+            if(destination.origin!==location.origin||phase(destination)!=='paper')return null;
+        }
+        return control;
+    }
 
     function scan(doc = document) {
         return [...doc.querySelectorAll('.questionLi')].filter(node=>available(node)&&!node.parentElement?.closest('.questionLi,[data-xxt-codex-panel]')).map((element,index)=>{
@@ -9570,15 +9590,22 @@ startxref
     }
 
     function read(entry) {
-        if(entry.question.type==='unsupported')return null;
+        if(entry.question.type==='unsupported'||!entry.element.isConnected)return null;
         if(entry.rows.length){
-            if(entry.rows.some(row=>!['true','false'].includes(row.getAttribute('aria-checked'))))return null;
-            return entry.rows.flatMap((row,i)=>row.getAttribute('aria-checked')==='true'?[entry.question.options[i].key]:[]).sort();
+            if(entry.rows.some(row=>!entry.element.contains(row)))return null;
+            try {
+                return entry.rows.flatMap((row,i)=>XxtCodexDom.selected(row)?[entry.question.options[i].key]:[]).sort();
+            } catch {
+                return null;
+            }
         }
+        if(entry.fields.some(field=>!entry.element.contains(field)))return null;
         return entry.fields.map(field=>field.value.trim());
     }
     const same = (left,right) => JSON.stringify(left)===JSON.stringify(right);
-    const target = (entry,answer) => (entry.rows.length?answer.choices:answer.texts)?.map(value=>value.trim());
+    const target = (entry,answer) => entry.rows.length
+        ? answer.choices?.map(value=>value.trim()).sort()
+        : answer.texts?.map(value=>value.trim());
     const matches = (entry,answer) => !!answer && same(read(entry),target(entry,answer));
     const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
     async function fill(entry,answer,guard){
@@ -9620,7 +9647,7 @@ startxref
         const control=node?.closest?.(`${submitSelector},${confirmSelector}`);
         return Boolean(control && /^(交卷|确定)$/.test(plain(control)));
     }
-    globalThis.XxtExamDom={phase,scope,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl};
+    globalThis.XxtExamDom={phase,scope,preview,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl,pageKey};
 })();
 
 /* One explicit run per active exam page. This runtime only uses native exam controls. */
@@ -9632,15 +9659,31 @@ startxref
     if(!phase||typeof GM_getValue!=='function')return;
     const initialUrl=location.href, {key,identified}=D.scope();
     const clockKey=`xxt-exam-start:${key}`, pendingKey=`xxt-exam-pending:${key}`, reportKey=`xxt-exam-report:${key}`;
+    const transferKey='xxt-exam-preview-handoff';
+    function takePreviewHandoff(){
+        if(phase!=='paper')return null;
+        const raw=sessionStorage.getItem(transferKey);
+        if(!raw)return null;
+        sessionStorage.removeItem(transferKey);
+        try {
+            const transfer=JSON.parse(raw), now=Date.now(), from=new URL(document.referrer);
+            if(from.origin!==location.origin||D.phase(from)!=='single'||D.pageKey(from.href)!==transfer.source)return null;
+            if(transfer.identified&&identified&&transfer.key!==key)return null;
+            if(!(transfer.startedAt>0&&transfer.startedAt<=transfer.issuedAt&&transfer.issuedAt<=now&&now-transfer.issuedAt<=20000))return null;
+            return transfer;
+        } catch {return null;}
+    }
+    const handoff=takePreviewHandoff();
     const savedStart=Number(sessionStorage.getItem(clockKey));
-    const startTime=Number.isFinite(savedStart)&&savedStart>0&&savedStart<=Date.now()?savedStart:Date.now();
+    const now=Date.now();
+    const startTime=Math.min(savedStart>0&&savedStart<=now?savedStart:now,handoff?.startedAt??now);
     if(phase!=='result')sessionStorage.setItem(clockKey,String(startTime));
     const capturedAt=performance.now();
     const elapsedAtLoad=Date.now()-startTime;
     const msRemaining=minutes=>Math.max(0,minutes*60000-elapsedAtLoad-(performance.now()-capturedAt));
     const waiting=()=>new Promise(resolve=>setTimeout(resolve,140));
     const readReport=()=>GM_getValue(reportKey,null);
-    let panel, status, view, output, job, activeTest, humanHold=false, unloaded=false;
+    let panel, status, view, output, job, activeTest, openingPreview, previewTimeout, humanHold=false, unloaded=false;
     function notice(text){if(output&&output.textContent!==text)output.textContent=text;}
     const policy=()=>view?.policy()||{...XxtExamUI.load(),minutesValid:true,files:[]};
     const pending=()=>sessionStorage.getItem(pendingKey)==='1'||(identified&&readReport()?.submitted===true);
@@ -9651,6 +9694,24 @@ startxref
         const test=activeTest;activeTest=null;
         test?.abort();
         notice(text);
+    }
+    function cancelPreviewHandoff(){
+        if(!openingPreview)return;
+        clearTimeout(previewTimeout);
+        if(sessionStorage.getItem(transferKey)===openingPreview)sessionStorage.removeItem(transferKey);
+        openingPreview=null;
+    }
+    function openPaper(){
+        const control=D.preview();
+        if(!control){notice('未找到唯一可用的「整卷预览」，请点平台顶部入口后再开始。');return;}
+        openingPreview=JSON.stringify({source:D.pageKey(initialUrl),key,identified,startedAt:startTime,issuedAt:Date.now()});
+        sessionStorage.setItem(transferKey,openingPreview);
+        notice('正在打开学习通整卷预览…');
+        previewTimeout=setTimeout(()=>{
+            cancelPreviewHandoff();
+            notice('未进入整卷预览，请点平台顶部入口后再开始。');
+        },8000);
+        control.click();
     }
     function check(subject){
         if(job!==subject||unloaded)throw Error('考试辅助已停止。');
@@ -9749,13 +9810,22 @@ startxref
         confirm.click();
         notice('已点击平台确认交卷，等待学习通回执。若页面未跳转，请先核对提交状态。');
     }
-    async function execute(subject, settings, readOnly){
+    async function execute(subject, settings, readOnly, fromPreview){
         check(subject);
-        const entries=D.scan();
+        if(XxtFonts?.prepare)await XxtFonts.prepare(document,()=>check(subject));
+        let entries=D.scan();
+        if(fromPreview){
+            for(let i=0;i<24;i++){
+                const count=D.count();
+                if(entries.length&&(count===null||count===entries.length))break;
+                await waiting();
+                check(subject);
+                entries=D.scan();
+            }
+        }
         if(!entries.length||entries.length>XxtCodexCore.pageQuestionLimit)throw Error('整卷题目未就绪或超过 256 题。');
         if(D.count()!==null&&D.count()!==entries.length)throw Error('页面题量与已显示题数不一致，请展开全部试题。');
         const full=snapshot(entries), prior=entries.map(D.read);
-        if(XxtFonts?.prepare)await XxtFonts.prepare(document,()=>check(subject));
         const {rows,answers}=await solve(entries,subject,settings);
         check(subject);
         const items=entries.map(({question:q})=>rows.get(q.id)||viewItem(q,null,'这一题没有返回可用结果。'));
@@ -9775,7 +9845,7 @@ startxref
                 check(subject);
                 item.review=true;item.explanation+='\n'+error.message;
                 writeReport(items,subject.at);
-                throw error;
+                throw Error('第 '+entry.question.number+' 题：'+error.message);
             }
         }
         writeReport(items,subject.at);
@@ -9785,29 +9855,31 @@ startxref
         else notice(`已核对 ${filled} 题，请查看作答理由并手动交卷。`);
     }
 
-    async function start(readOnly){
-        if(phase!=='paper'){notice('请从最后一题进入整卷预览后开始。');return;}
+    async function start(readOnly,fromPreview=false){
+        if(phase==='result'||(phase==='single'&&readOnly)){notice('请在整卷预览页生成答案。');return;}
         if(D.dialog()){notice('请先关闭学习通的交卷确认窗口。');return;}
-        if(job){notice('本卷正在处理，可点击停止。');return;}
+        if(job||openingPreview){notice('本卷正在处理，可点击停止。');return;}
         if(activeTest){notice('请等 AI 连接测试结束后再开始。');return;}
         const settings=policy();
         if(settings.importing||!settings.minutesValid){notice('请等资料读取完成，并核对最早交卷时间。');return;}
-        if(settings.strong&&!settings.files.length){notice('请先导入知识文件，或取消勾选强相关。');return;}
+        if(phase==='paper'&&settings.strong&&!settings.files.length){notice('请先导入知识文件，或取消勾选强相关。');return;}
         if(pending()&&!readOnly&&settings.answer==='auto'){notice('本卷已有交卷请求，先核对平台回执。');return;}
         if(!GM_getValue('xxt-ai-enabled',!!XxtAi.load().key)){notice('请先在接口页选择并配置 AI。');return;}
         if(XxtManualVerification.kind()){notice('请先手动处理学习通验证。');return;}
         humanHold=false;status.setVerification('');
         const subject={at:Date.now()};job=subject;
         try {
+            check(subject);
+            if(phase==='single'){openPaper();return;}
             if(navigator.locks)await navigator.locks.request(`xxt:exam:${key}`,{ifAvailable:true},async lock=>{
                 if(!lock)throw Error('另一个页面正在处理同一份试卷。');
-                await execute(subject,settings,readOnly);
+                await execute(subject,settings,readOnly,fromPreview);
             });
-            else await execute(subject,settings,readOnly);
-        } catch(error){if(job===subject)notice(error.message);}
+            else await execute(subject,settings,readOnly,fromPreview);
+        } catch(error){if(job===subject){cancelPreviewHandoff();notice(error.message);}}
         finally{if(job===subject)job=null;}
     }
-    function changed(){if(job||activeTest)stop('考试设置已变，当前操作停止。需要时请重新开始。');}
+    function changed(){if(job||activeTest||openingPreview){cancelPreviewHandoff();stop('考试设置已变，当前操作停止。需要时请重新开始。');}}
     function mount(){
         panel=document.createElement('section');panel.dataset.xxtCodexPanel='true';panel.dataset.xxtExamPage=phase;
         panel.setAttribute('aria-label','学习助手考试面板');
@@ -9821,9 +9893,9 @@ startxref
         const summary=document.createElement('summary');summary.textContent='考试作答记录';details.append(summary);
         status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:changed,onQuietChange:changed,studyControls:true,examCallbacks:{phase,start,change:changed}});
         view=status.homeworkUI.exam;
-        actions.querySelector('[data-action=stop]').onclick=()=>stop();
+        actions.querySelector('[data-action=stop]').onclick=()=>{cancelPreviewHandoff();stop();};
         actions.querySelector('[data-action=connect]').onclick=async event=>{
-            if(job||activeTest||XxtManualVerification.kind())return;
+            if(job||activeTest||openingPreview||XxtManualVerification.kind())return;
             const button=event.currentTarget;button.disabled=true;
             const test=XxtAi.request('/test-selected',{});activeTest=test;
             try {const result=await test.promise;if(activeTest===test)XxtAssistantTheme.testResult(button,result);}
@@ -9833,11 +9905,11 @@ startxref
         document.body.append(panel);
         const previous=readReport();
         if(previous)view.renderReport(previous);
-        notice(phase==='paper'?'选择作答与交卷方式，再开始本卷。':phase==='result'?'交卷结果以学习通回执为准。':'当前为逐题答题页。请在最后一题进入整卷预览。');
+        notice(phase==='paper'?'选择作答与交卷方式，再开始本卷。':phase==='result'?'交卷结果以学习通回执为准。':'点击「开始考试辅助」可打开整卷预览。');
     }
     function sync(){
         const type=XxtManualVerification.kind();
-        if(type&&!humanHold){humanHold=true;stop(XxtManualVerification.action(type));}
+        if(type&&!humanHold){humanHold=true;cancelPreviewHandoff();stop(XxtManualVerification.action(type));}
         status.setVerification(type||(humanHold?'waiting':''),'开始考试辅助');
         panel.toggleAttribute('data-xxt-exam-dialog',D.dialog());
         view.showGate(msRemaining(policy().minutes));
@@ -9866,7 +9938,8 @@ startxref
     window.addEventListener('blur',foreground);document.addEventListener('visibilitychange',foreground);
     document.addEventListener('xxt-profiles-changed',changed);
     document.addEventListener('xxt-platform-settings-changing',changed);
-    window.addEventListener('pagehide',()=>{unloaded=true;observer.disconnect();clearInterval(timer);stop();},{once:true});
+    window.addEventListener('pagehide',()=>{unloaded=true;clearTimeout(previewTimeout);observer.disconnect();clearInterval(timer);stop();},{once:true});
+    if(handoff&&!humanHold)void start(false,true);
 })();
 
 /* Bounded submit -> grade -> redo -> next workflow, coordinated with the video player. */
