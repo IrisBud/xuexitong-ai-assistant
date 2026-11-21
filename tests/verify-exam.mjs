@@ -9,6 +9,7 @@ await mkdir(out,{recursive:true});
 const bundle=await readFile(resolve(root,'dist/xuexitong-ai-assistant.user.js'),'utf8');
 const origin='https://mooc1.chaoxing.com', preview='/exam-ans/mooc2/exam/preview', single='/exam-ans/exam/test/reVersionTestStartNew';
 const result='/exam-ans/exam/test/look';
+const nthReview=(page,n)=>page.locator(`[data-exam-reason-id="q-${n}"]`);
 const row=(key,text,type='radio')=>`<div class="answerBg" role="${type}" aria-checked="false" tabindex="0"><span class="num_option">${key}</span><span class="answer_p">${text}</span></div>`;
 const html=`<!doctype html><meta charset="utf-8"><style>body{font:16px system-ui;margin:35px}.questionLi{margin:20px 0}.answerBg{padding:7px;cursor:pointer}.answerBg[aria-checked=true]{background:#bcdbff}#submitConfirmPop{position:fixed;z-index:1001;left:35%;top:24%;background:white;padding:20px;box-shadow:0 2px 20px #0004}.popBottom a{padding:10px}</style>
 <aside>题量：3</aside><div class="sub-button"><a href="#" class="completeBtn">交卷</a></div><main>
@@ -47,12 +48,12 @@ async function setup(opts={}){
         const navigation=url.pathname===single&&opts.previewLink?previewControl.repeat(opts.ambiguousPreview?2:1):'';
         return route.fulfill({contentType:'text/html;charset=utf-8',body:url.pathname===result?'<p>交卷成功</p>':html+navigation});
     });
-    await context.addInitScript(({uncertain,latency,receipt,questionCount,image,vision,classOnly})=>{
+    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway})=>{
         window.unsafeWindow=window;
         const config={provider:'custom',protocol:'chat',model:'fixture',key:'fixture',baseUrl:'https://model.fixture.invalid/v1'};
         window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem('settings:'+key)||'null')??({'xxt-ai-enabled':true,'xxt-quiet-enabled':false,'xxt-ai-config':config,'xxt-ai-vision-enabled':vision||false,'xxt-ai-vision-config':config}[key]??fallback);
         window.GM_setValue=(key,value)=>localStorage.setItem('settings:'+key,JSON.stringify(value));
-        window.counters={open:0,confirm:0,fill:0,text:0,models:0,images:0,prompt:''};
+        window.counters={open:0,confirm:0,fill:0,text:0,models:0,images:0,prompt:'',requests:[],reviewRequests:[]};
         document.hasFocus=()=>true;
         window.GM_xmlhttpRequest=spec=>{
             window.counters.models++;
@@ -61,14 +62,30 @@ async function setup(opts={}){
             if(Array.isArray(message))counters.images+=message.filter(part=>part.type==='image_url').length;
             window.counters.prompt=content;
             const questions=JSON.parse(content.split('\n题目：')[1].split('\n之前的平台反馈')[0]);
-            const answers=questions.map(q=>({id:q.id,choices:q.type==='multiple'?['A','B']:q.type==='blank'?[]:['A'],
-                ...(q.type==='blank'?{texts:['样例术语']}:{}),readable:true,confidence:uncertain&&q.id==='q-2'?0.42:0.95,explanation:`示例证据 ${q.id}`}));
-            const timeout=setTimeout(()=>spec.onload({status:200,responseText:JSON.stringify({choices:[{message:{content:JSON.stringify({answers})}}]})}),latency||10);
+            counters.requests.push(questions.map(q=>q.id));
+            const review=content.includes('考题二次复核');
+            if(review)counters.reviewRequests.push(questions.map(q=>q.id));
+            const answers=questions.map(q=>{
+                const text=q.type==='blank'||q.type==='essay';
+                const low=uncertain&&q.id==='q-2'||uncertainEssay&&q.id==='q-3';
+                return {id:q.id,choices:text?[]:q.type==='multiple'?(review?['B','C']:['A','B']):['A'],
+                    ...(text?{texts:['样例术语']}:{}),readable:true,confidence:review?0.99:low?0.42:0.95,
+                    explanation:review?(text?'关键推理：辨认定义后给出术语；得分点：术语准确。':q.options.map(({key})=>`${key}：逐项依据`).join('\n')):`示例证据 ${q.id}`};
+            });
+            const timeout=setTimeout(()=>spec.onload({status:200,responseText:JSON.stringify({choices:[{message:{content:JSON.stringify({answers})}}]})}),questions.some(q=>slowQuestions?.includes(q.id))?3500:latency||10);
             return {abort(){clearTimeout(timeout);spec.onabort?.();}};
         };
         document.addEventListener('DOMContentLoaded',()=>{
             if(!document.querySelector('main'))return;
-            if(questionCount)document.querySelector('aside').textContent='题量：'+questionCount;
+            const main=document.querySelector('main');
+            if(uncertainEssay)main.children[2].querySelector('.colorShallow').textContent='简答题';
+            for(let i=4;i<=3+(extraQuestions||0);i++){
+                const question=main.firstElementChild.cloneNode(true);
+                question.querySelector('h3').firstChild.textContent=i+'. ';
+                question.querySelector('h3').lastChild.textContent='模拟题 '+i+' 的答案？';
+                main.append(question);
+            }
+            if(questionCount||extraQuestions)document.querySelector('aside').textContent='题量：'+(questionCount||3+extraQuestions);
             if(image){const img=document.createElement('img');img.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';img.alt='图片';document.querySelector('.answer_p').append(img);}
             const modal=document.querySelector('#submitConfirmPop');
             document.querySelector('.completeBtn').onclick=event=>{event.preventDefault();counters.open++;modal.hidden=false;};
@@ -84,11 +101,13 @@ async function setup(opts={}){
             for(const row of document.querySelectorAll('.answerBg')){
                 if(classOnly)row.removeAttribute('aria-checked');
                 row.onclick=()=>{
+                    if(refuseWrite&&row.closest('.questionLi')===main.children[1])return;
                     const checked=!selected(row);
                     const single=row.getAttribute('role')==='radio';
                     if(single)for(const item of row.parentElement.querySelectorAll('[role=radio]'))mark(item,false);
                     mark(row,single||checked);
                     counters.fill++;
+                    if(stopPartway&&counters.fill===2)document.querySelector('[data-xxt-exam-page] [data-action=stop]').click();
                 };
             }
             document.querySelector('main input').addEventListener('input',()=>counters.text++);
@@ -96,7 +115,7 @@ async function setup(opts={}){
     },opts);
     const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
     if(opts.clock)await page.clock.install({time:new Date('2026-11-20T12:00:00+08:00')});
-    await page.goto(origin+(opts.single?single:preview)+'?examAnswerId=fixture');
+    await page.goto(origin+(opts.single?single:preview)+(opts.relationAttempt?'?examRelationAnswerId=fixture&enc=old':'?examAnswerId=fixture'));
     await page.addScriptTag({content:bundle});
     await page.locator('[data-exam-options]').waitFor();
     return {page,context,errors};
@@ -238,6 +257,7 @@ try {
     await scenario('image-without-vision-is-marked-for-review',{image:true},async page=>{
         await start(page);await waitText(page,'已生成答案与理由');
         assert.match(await page.locator('[data-exam-review] [data-state=review]').innerText(),/未配置图片接口/);
+        assert.equal(await nthReview(page,1).getByRole('img',{name:'选项 A 图片'}).count(),1);
     });
     await scenario('attached-question-image-reaches-vision-model',{image:true,vision:true},async page=>{
         await start(page);await waitText(page,'已生成答案与理由');
@@ -259,6 +279,114 @@ try {
         await choice(page,'answer-manual').click();await waitText(page,'考试设置已变');
         assert.equal(await choice(page,'submit-auto').isDisabled(),true);
         assert.deepEqual([(await stats(page)).fill,(await stats(page)).open,(await stats(page)).confirm],[0,0,0]);
+    });
+    await scenario('resume-only-requests-unfinished-batch-after-stop-and-new-preview-url',
+        {extraQuestions:5,slowQuestions:['q-7'],relationAttempt:true},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await page.waitForFunction(()=>counters.models===2);
+        assert.equal(await page.locator('[data-exam-review] article').count(),6);
+        await start(page,'stop');
+        await waitText(page,'已停止考试辅助');
+        await page.goto(origin+preview+'?examRelationAnswerId=fixture&enc=renewed');
+        await page.addScriptTag({content:bundle});
+        await page.locator('[data-exam-review] article').nth(5).waitFor();
+        assert.equal((await stats(page)).models,0);
+        await start(page);
+        await waitText(page,'请查看作答理由并手动交卷');
+        assert.deepEqual((await stats(page)).requests,[['q-7','q-8']]);
+        assert.equal(await page.locator('[data-exam-review] article').count(),8);
+        await start(page);
+        await waitText(page,'请查看作答理由并手动交卷');
+        assert.equal((await stats(page)).models,1);
+        assert.deepEqual([(await stats(page)).fill,(await stats(page)).text,(await stats(page)).confirm],[8,1,0]);
+    });
+    await scenario('resume-native-partial-multiple-choice-without-repeating-writes',{stopPartway:true},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await waitText(page,'已停止考试辅助');
+        assert.equal(await page.locator('main [role=checkbox][aria-checked=true]').count(),1);
+        await start(page);
+        await waitText(page,'请查看作答理由并手动交卷');
+        assert.deepEqual([(await stats(page)).models,(await stats(page)).fill,(await stats(page)).text],[1,3,1]);
+    });
+    await scenario('confirmed-choice-replaces-only-the-reviewed-answer-and-survives-restart',
+        {uncertain:true,viewport:{width:390,height:840}},async page=>{
+        await page.locator('main [role=checkbox]').last().dispatchEvent('click');
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await waitText(page,'自动交卷已停止');
+        const card=nthReview(page,2);
+        await start(page);
+        await waitText(page,'还有 1 题待复查');
+        assert.equal((await stats(page)).models,2);
+        assert.deepEqual((await stats(page)).reviewRequests,[['q-2']]);
+        assert.match(await card.innerText(),/A：逐项依据[\s\S]*B：逐项依据[\s\S]*C：逐项依据/);
+        assert.match(await card.locator('.xxt-exam-second-pass').innerText(),/B · 记录；C · 忽略/);
+        await page.locator('[data-exam-goto-review]').click();
+        assert.equal(await card.locator('.xxt-exam-reason-head strong').evaluate(el=>document.activeElement===el),true);
+        const confirm=card.getByRole('button',{name:'确认作答'});
+        const picks=card.getByRole('checkbox');
+        assert.equal(await picks.last().isChecked(),true);
+        await confirm.scrollIntoViewIfNeeded();
+        await page.screenshot({path:resolve(out,'narrow-review-confirmation.png')});
+        await picks.first().check();
+        await picks.last().uncheck();
+        await confirm.click();
+        await waitText(page,'已确认第 2 题');
+        assert.equal(await card.getAttribute('data-state'),'ready');
+        assert.match(await card.innerText(),/人工已确认：A · 准备/);
+        assert.equal(await page.locator('[data-exam-goto-review]').isVisible(),false);
+        assert.equal(await page.locator('main [role=checkbox][aria-checked=true]').count(),1);
+        assert.equal(await page.locator('main [role=checkbox]').first().getAttribute('aria-checked'),'true');
+        assert.deepEqual([(await stats(page)).models,(await stats(page)).open,(await stats(page)).confirm],[2,0,0]);
+        await start(page);
+        await waitText(page,'请查看作答理由并手动交卷');
+        assert.equal((await stats(page)).models,2);
+        assert.equal(await card.getAttribute('data-state'),'ready');
+        await page.locator('main [role=checkbox]').last().dispatchEvent('click');
+        await start(page);
+        await waitText(page,'自动交卷已停止');
+        assert.equal(await card.getAttribute('data-state'),'review');
+        assert.match(await card.innerText(),/页面作答与人工确认记录不同/);
+    });
+    await scenario('native-write-failure-keeps-review-and-later-questions-continue',{refuseWrite:true},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await waitText(page,'还有 1 题待复查');
+        assert.equal(await page.locator('main input').inputValue(),'样例术语');
+        assert.deepEqual((await stats(page)).reviewRequests,[['q-2']]);
+        const card=nthReview(page,2);
+        const confirm=card.getByRole('button',{name:'确认作答'});
+        assert.equal(await confirm.isDisabled(),true);
+        await card.getByRole('checkbox').first().check();
+        await confirm.click();
+        await card.getByRole('status').getByText('页面未确认选项已更新。').waitFor();
+        assert.equal(await card.getAttribute('data-state'),'review');
+        assert.equal((await stats(page)).confirm,0);
+    });
+    await scenario('essay-review-explains-scoring-and-awaits-manual-confirmation',{uncertainEssay:true},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await waitText(page,'还有 1 题待复查');
+        const card=nthReview(page,3);
+        assert.deepEqual((await stats(page)).reviewRequests,[['q-3']]);
+        assert.match(await card.locator('.xxt-exam-second-pass').innerText(),/关键推理.*得分点/);
+        assert.equal(await page.locator('main input').inputValue(),'');
+        await card.getByRole('textbox',{name:'答案'}).fill('人工复核术语');
+        await card.getByRole('button',{name:'确认作答'}).click();
+        await waitText(page,'复查已完成');
+        assert.equal(await page.locator('main input').inputValue(),'人工复核术语');
+        assert.equal((await stats(page)).confirm,0);
+    });
+    await scenario('same-questions-in-a-different-attempt-require-a-fresh-request',{},async page=>{
+        await start(page,'solve');
+        await waitText(page,'已生成答案与理由');
+        await page.goto(origin+preview+'?examAnswerId=another-attempt');
+        await page.addScriptTag({content:bundle});
+        await start(page,'solve');
+        await waitText(page,'已生成答案与理由');
+        assert.equal((await stats(page)).models,1);
     });
     await writeFile(resolve(out,'observations.json'),JSON.stringify({scope:'Synthetic user-observed exam structures, local files and fake model. No live grade or submission.',outcomes},null,2)+'\n');
     console.log(`Exam passed ${outcomes.length} scenarios`);

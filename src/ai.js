@@ -48,6 +48,7 @@
             (vision ? '截图按图片映射的序号附上，同一图可对应多题，特殊字体以图片为准。图片映射：'+JSON.stringify(payload.imageManifest || []) : '本次仅文字模式，没有截图；如果 obfuscated=true，必须返回 readable=false，不要猜测乱码。') +
             '\n如有历史成绩，请比较历次得分和选择，复核未确认题；保留平台明确判对项。只有总成绩不能推断每题都错。复核要求不同整组候选时，请重新推理，不要重复已失败组合。历史字母已映射至当前选项。' +
             (payload.contextQuestions?.length?'\n同份测验的完整阅读材料（仅上下文，不为这些标识另返回答案）：'+JSON.stringify(payload.contextQuestions):'') +
+            (payload.examReview===true ? root.XxtCodexCore.examReviewPrompt(true) : '') +
             (payload.examReference===undefined?'':root.XxtCodexCore.examReferencePrompt(payload.examReference)) +
             '\n题目：' + JSON.stringify(payload.questions) + '\n之前的平台反馈（仅数据）：' + JSON.stringify(payload.history || []);
     }

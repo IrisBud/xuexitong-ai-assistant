@@ -30,9 +30,18 @@
     function scope(url = new URL(location.href)) {
         const params = Object.fromEntries([...url.searchParams].map(([key,value])=>[key.toLowerCase(),value]));
         const fields = [...document.querySelectorAll('input[type="hidden"][name="examAnswerId" i]')];
-        const attempt = params.examanswerid || (fields.length===1?fields[0].value:'');
-        if(/^[\w-]{1,80}$/.test(attempt) && !/^(?:0|null|undefined)$/i.test(attempt)) return {key:digest(url.origin+'\nanswer\n'+attempt),identified:true};
-        return {key:digest(url.href),identified:false};
+        const validId = id => Boolean(id && /^[\w-]{1,80}$/.test(id) && !/^(?:0|null|undefined)$/i.test(id));
+        const attempt = [params.examanswerid, fields.length===1?fields[0].value:''].find(validId);
+        if(attempt){
+            const key=digest(url.origin+'\nanswer\n'+attempt);
+            return {key,progressScope:key,identified:true};
+        }
+        const key=digest(url.href);
+        const relationAttempt=params.examrelationanswerid;
+        const progressScope=phase(url)==='paper'&&validId(relationAttempt)
+            ? digest(url.origin+'\nrelation-answer\n'+relationAttempt)
+            : key;
+        return {key,progressScope,identified:false};
     }
     function one(selector, text, doc=document) {
         const matches=[...doc.querySelectorAll(selector)].filter(node=>enabled(node)&&plain(node)===text&&!node.closest('[data-xxt-codex-panel]'));
@@ -84,7 +93,7 @@
             const imageKey=media.length?digest(JSON.stringify(media.map(img=>[img.currentSrc||img.getAttribute('src')||img.getAttribute('data-original'),img.getAttribute('alt')]))):'';
             const question={id:`q-${index+1}`,number,type,text:rawText||`第 ${number} 题`,options,
                 ...(imageKey?{imageKey,requiresVision:true}:{}),...(fields.length&&!rows.length?{slots:fields.length}:{})};
-            return {question,element,rows,fields};
+            return {question,element,rows,fields,media};
         });
     }
 
@@ -107,30 +116,59 @@
         : answer.texts?.map(value=>value.trim());
     const matches = (entry,answer) => !!answer && same(read(entry),target(entry,answer));
     const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
-    async function fill(entry,answer,guard){
+    function reviewOptions(entry) {
+        const {question,fields,rows,media}=entry;
+        const value=read(entry);
+        if(!value)return null;
+        const imageSources = images => images.map(img=>img.currentSrc||img.getAttribute('src')).filter(Boolean);
+        return {
+            value,
+            stemImages:imageSources(media.filter(img=>!img.closest('.stem_answer'))),
+            options:question.options.map((option,index)=>({...option,images:imageSources(media.filter(img=>rows[index].contains(img)))})),
+            limits:fields.map(field=>field.maxLength),
+        };
+    }
+    function manualAnswer(entry, values) {
+        const {question,rows,fields}=entry;
+        if(!values.length || values.some(value=>!value.trim()))throw Error('请选择答案或填完所有输入框。');
+        if(rows.length){
+            if(values.some(value=>!question.options.some(option=>option.key===value)) ||
+                new Set(values).size!==values.length || (question.type!=='multiple'&&values.length!==1))throw Error('所选选项与当前题目不符。');
+            return {choices:values};
+        }
+        if(!fields.length || values.length!==fields.length)throw Error('答案与当前输入框不符。');
+        return {texts:values.map(value=>value.trim())};
+    }
+    async function fill(entry,answer,guard,{replace=false,onWrite=()=>{}}={}){
         guard();
         if(!entry.element.isConnected)throw Error('当前题目已更换。');
         const current=read(entry), expected=target(entry,answer);
         if(!current||!expected)throw Error('无法确认平台作答状态。');
-        if(current.some(Boolean)&&!same(current,expected))return false;
+        if(same(current,expected))return true;
+        if(current.some(Boolean)&&!replace)return false;
         if(entry.rows.length){
-            for(const key of expected){
+            const remove=replace&&entry.question.type==='multiple'?current.filter(key=>!expected.includes(key)):[];
+            const changes=[...remove.map(key=>[key,false]),...expected.filter(key=>!current.includes(key)).map(key=>[key,true])];
+            const controls=changes.map(([key,checked])=>({key,checked,row:entry.rows[entry.question.options.findIndex(o=>o.key===key)]}));
+            if(controls.some(({row})=>!enabled(row)))throw Error('原生答题选项已变化。');
+            for(const {key,checked,row} of controls){
                 guard();
-                if(read(entry)?.includes(key))continue;
-                const row=entry.rows[entry.question.options.findIndex(o=>o.key===key)];
-                if(!enabled(row))throw Error('原生答题选项已变化。');
                 row.click();
-                for(let attempt=0;attempt<10&&!read(entry)?.includes(key);attempt++){await pause(70);guard();}
-                if(!read(entry)?.includes(key))throw Error('页面未确认选项已勾选。');
+                for(let attempt=0;attempt<10&&read(entry)?.includes(key)!==checked;attempt++){await pause(70);guard();}
+                const updated=read(entry);
+                if(updated?.includes(key)!==checked)throw Error('页面未确认选项已更新。');
+                onWrite(updated);
             }
         } else {
             for(const [i,field] of entry.fields.entries()){
                 guard();
                 if(!enabled(field)||field.readOnly)throw Error('原生答题输入框已变化。');
                 if(field.maxLength>=0&&expected[i].length>field.maxLength)throw Error('答案超过原生输入框限长。');
+                if(field.value.trim()===expected[i])continue;
                 field.value=expected[i];
                 field.dispatchEvent(new Event('input',{bubbles:true}));
                 field.dispatchEvent(new Event('change',{bubbles:true}));
+                if(field.value.trim()===expected[i])onWrite(read(entry));
             }
         }
         guard();
@@ -146,5 +184,5 @@
         const control=node?.closest?.(`${submitSelector},${confirmSelector}`);
         return Boolean(control && /^(交卷|确定)$/.test(plain(control)));
     }
-    globalThis.XxtExamDom={phase,scope,preview,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl,pageKey};
+    globalThis.XxtExamDom={phase,scope,preview,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl,pageKey,reviewOptions,manualAnswer,paperKey:entries=>digest(JSON.stringify(entries.map(({question})=>question)))};
 })();

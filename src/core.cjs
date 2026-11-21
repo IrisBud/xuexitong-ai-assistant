@@ -133,6 +133,13 @@
         if (!Array.isArray(context) || context.length > 20 || context.some(q => !q || typeof q.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(q.id) || typeof q.text !== 'string' || q.text.length > questionTextLimit) || context.reduce((n,q)=>n+q.text.length,0)>128000) throw Error('同份测验的阅读材料超出范围，未发送不完整材料');
         return context;
     }
+    function examReviewPrompt(review) {
+        if(review!==true)return '';
+        return '\n考题二次复核。重新独立审题，结合题图和可用资料，辨认否定词、限定条件和易混点。' +
+            '选择题在 explanation 中按当前字母逐项另起一行，使用“A：”“B：”等开头，说明每项为什么应选或不应选，判断题也解释两项。' +
+            '填空题按空号解释依据；简答题交代关键推理、得分点和适用条件。明确指出不确定之处。' +
+            'choices 或 texts 仍只写建议答案，explanation 最多 4000 字。本次建议供人工确认。\n';
+    }
     function examReferencePrompt(reference) {
         if (reference === undefined) return '';
         const { priority, excerpts } = reference || {};
@@ -160,7 +167,7 @@
             return han>=6&&han>latin*.08;
         }).map(q=>q.id);
     }
-    const api = { pageQuestionLimit, questionTextLimit, validateContext, examReferencePrompt, answerLanguage, answerLanguageMismatches, validateQuestions, validateAnswers, resolveAnswers, recallAnswers, normalizeQuestionText, validateHistory, nextAction, quietHoursAt, playbackRates, normalizePlaybackRate, normalizeVideoAdvance, videoAdvanceReached };
+    const api = { pageQuestionLimit, questionTextLimit, validateContext, examReferencePrompt, examReviewPrompt, answerLanguage, answerLanguageMismatches, validateQuestions, validateAnswers, resolveAnswers, recallAnswers, normalizeQuestionText, validateHistory, nextAction, quietHoursAt, playbackRates, normalizePlaybackRate, normalizeVideoAdvance, videoAdvanceReached };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.XxtCodexCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

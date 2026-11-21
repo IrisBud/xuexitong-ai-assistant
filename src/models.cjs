@@ -1,7 +1,7 @@
 /* Official model catalog. Refresh sources and capabilities before every release. */
 (function (root) {
     'use strict';
-    const verifiedAt = '2026-11-21', release = '1.8.2';
+    const verifiedAt = '2026-11-21', release = '1.8.3';
     const rows = (ids, profile = '', vision = null) => ids.map(id => ({ id, profile, vision }));
     const providers = {
         openai: { sources: ['https://developers.openai.com/api/docs/models','https://developers.openai.com/api/docs/changelog','https://developers.openai.com/api/docs/deprecations','https://developers.openai.com/api/docs/guides/latest-model','https://developers.openai.com/api/docs/guides/reasoning','https://developers.openai.com/api/docs/models/gpt-6.2-astra','https://developers.openai.com/api/docs/models/gpt-6.2-sol','https://developers.openai.com/api/docs/models/gpt-6-sol','https://developers.openai.com/api/docs/models/gpt-6.1-terra'], models: rows(['gpt-6.2-astra','gpt-6.2-sol','gpt-6-astra','gpt-6.1-sol'], 'openai', true).concat(rows(['gpt-6.1-terra','gpt-6-sol','gpt-6-luna'], 'openai-none', true)) },

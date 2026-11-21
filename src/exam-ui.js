@@ -20,10 +20,11 @@
         return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     };
     function plainReport(report){
-        return ['考试作答理由','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的题会标为待复查。',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
+        return ['考试作答理由','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查，可在面板内人工确认。',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
             const confidence=item.confidence===null?'':` · AI 自评 ${Math.round(100*item.confidence)}%`;
             return [`第 ${item.number} 题${item.review?' · 待复查':''}${confidence}${item.image?' · 含图':''}`,item.stem,
-                item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.explanation].filter(Boolean).join('\n');
+                item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.confirmed?`人工已确认 ${item.confirmed}`:'',item.explanation,
+                item.secondPass?`AI 复核${item.secondPass.answer?' · '+item.secondPass.answer:''}\n${item.secondPass.explanation}`:''].filter(Boolean).join('\n');
         })].filter(Boolean).join('\n\n');
     }
     function mount({host,callbacks={}}){
@@ -111,30 +112,96 @@
         const reviewSection=el('section',null,'xxt-exam-group'), reviewHead=el('div',null,'xxt-exam-review-head');
         const exportButton=button('导出理由');exportButton.dataset.examExport='true';exportButton.disabled=true;
         const progress=el('p',null,'xxt-exam-muted');progress.setAttribute('role','status');
-        const confidenceNote=el('p','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的题会标为待复查。','xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
+        const reviewLink=button('去复查');reviewLink.dataset.examGotoReview='true';reviewLink.hidden=true;
+        reviewLink.onclick=()=>revealReview();
+        const progressRow=el('div',null,'xxt-exam-review-summary');progressRow.append(progress,reviewLink);
+        const confidenceNote=el('p','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查，可在面板内人工确认。','xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
         const review=el('div',null,'xxt-exam-review');review.dataset.examReview='true';review.setAttribute('role','region');review.setAttribute('aria-label','作答理由和待复查题目');review.tabIndex=0;
-        reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,confidenceNote,progress,review);
+        reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,confidenceNote,progressRow,review);
         exportButton.onclick=()=>{
             if(!report?.items.length)return;
             const url=URL.createObjectURL(new Blob(['\ufeff',plainReport(report)],{type:'text/plain;charset=utf-8'}));
             const a=document.createElement('a');a.href=url;a.download=`考试作答理由-${new Date(report.at).toISOString().slice(0,10)}.txt`;a.click();
             setTimeout(()=>URL.revokeObjectURL(url),1000);
         };
-        function renderReport(next){
+        function reviewControls(item,question){
+            const group=el('fieldset',null,'xxt-exam-review-controls');
+            group.append(el('legend',`确认第 ${item.number} 题`));
+            const addImages=(container,images,alt)=>{
+                for(const src of images){
+                    const img=el('img');img.alt=alt;img.loading='lazy';img.src=src;container.append(img);
+                }
+            };
+            addImages(group,question.stemImages,'题干图片');
+            const fields=question.options.length?question.options.map(option=>{
+                const input=el('input');input.type=item.type==='multiple'?'checkbox':'radio';
+                input.name=`xxt-review-${item.id}`;input.value=option.key;
+                input.checked=question.value.includes(option.key);
+                const imageOption=option.images.length&&option.text===`图片选项 ${option.key}`;
+                const text=el('span',imageOption?option.key:`${option.key} · ${option.text}`);
+                addImages(text,option.images,`选项 ${option.key} 图片`);
+                const label=el('label',null,'xxt-exam-review-choice');label.append(input,text);group.append(label);
+                return input;
+            }):question.limits.map((limit,index)=>{
+                const input=el(item.type==='essay'?'textarea':'input');
+                input.value=question.value[index]||'';
+                if(limit>=0)input.maxLength=limit;
+                const label=el('label',item.type==='essay'?'答案':`第 ${index+1} 空`,'xxt-exam-review-text');
+                label.append(input);group.append(label);
+                return input;
+            });
+            const confirm=button('确认作答');confirm.dataset.examConfirmReview='true';
+            const feedback=el('p',null,'xxt-exam-review-feedback');feedback.setAttribute('role','status');feedback.hidden=true;
+            const values=()=>question.options.length?fields.filter(input=>input.checked).map(input=>input.value):fields.map(input=>input.value.trim());
+            const update=()=>{const selected=values();confirm.disabled=!selected.length||selected.some(value=>!value);};
+            group.addEventListener('input',update);
+            confirm.onclick=async event=>{
+                if(!event.isTrusted)return;
+                const selected=values();
+                group.disabled=true;confirm.textContent='正在核对…';feedback.hidden=true;
+                try {
+                    await callbacks.confirmReview(item.id,selected);
+                    if(!revealReview())review.querySelector(`[data-exam-reason-id="${item.id}"] strong`)?.focus({preventScroll:true});
+                } catch(error) {
+                    feedback.textContent=error.message;feedback.hidden=false;
+                } finally {
+                    group.disabled=false;confirm.textContent='确认作答';update();
+                }
+            };
+            update();group.append(confirm,feedback);
+            return group;
+        }
+        function renderReport(next,getReviewOptions){
+            const scrollTop=review.scrollTop;
             report=next;review.replaceChildren();
             const items=next?.items||[];exportButton.disabled=!items.length;
+            reviewLink.hidden=!items.some(item=>item.review);
             if(!items.length){review.append(el('p',phase==='result'?'本卷暂无可读取的理由记录。':'运行后，这里会显示逐题答案与理由。','xxt-exam-muted'));progress.textContent='';return;}
             const uncertain=items.filter(item=>item.review).length;
             progress.textContent=`已生成 ${items.length} 题理由${uncertain?` · ${uncertain} 题待复查`:''}`;
             for(const item of items){
                 const row=el('article',null,'xxt-exam-reason');row.dataset.state=item.review?'review':'ready';
-                const head=el('div',null,'xxt-exam-reason-head');head.append(el('strong',`第 ${item.number} 题`));
+                if(item.id)row.dataset.examReasonId=item.id;
+                const heading=el('strong',`第 ${item.number} 题`);heading.tabIndex=-1;
+                const head=el('div',null,'xxt-exam-reason-head');head.append(heading);
                 if(item.review)head.append(el('span','待复查','xxt-exam-review-label'));
                 if(item.confidence!==null)head.append(el('span',`AI 自评 ${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
                 const answer=el('p',item.answer||'未生成可用答案','xxt-exam-answer');
                 answer.setAttribute('aria-label',`建议答案 ${item.answer||'未生成'}`);
-                row.append(head,el('p',item.stem,'xxt-exam-stem'),answer,el('p',item.explanation));review.append(row);
+                row.append(head,el('p',item.stem,'xxt-exam-stem'),answer,el('p',item.explanation));
+                if(item.secondPass){
+                    const detail=el('div',null,'xxt-exam-second-pass');
+                    detail.append(el('strong','AI 复核'));
+                    if(item.secondPass.answer)detail.append(el('p',item.secondPass.answer,'xxt-exam-answer'));
+                    detail.append(el('p',item.secondPass.explanation));
+                    row.append(detail);
+                }
+                if(item.confirmed)row.append(el('p',`人工已确认：${item.confirmed}`,'xxt-exam-answer'));
+                const options=onPaper&&item.review&&callbacks.confirmReview&&getReviewOptions?.(item);
+                if(options)row.append(reviewControls(item,options));
+                review.append(row);
             }
+            review.scrollTop=scrollTop;
         }
         function set(key,value){settings[key]=value;callbacks.change?.();}
         function persist(write=true){
@@ -151,9 +218,17 @@
             const pane=section.closest('.xxt-workspace-pane');
             if(pane&&!pane.hidden&&!section.hidden&&reviewHead.getClientRects().length)pane.scrollTop+=reviewHead.getBoundingClientRect().top-pane.getBoundingClientRect().top;
         };
+        function revealReview(){
+            const row=review.querySelector('[data-state="review"]');
+            if(!row)return false;
+            revealReport();
+            review.scrollTop+=row.getBoundingClientRect().top-review.getBoundingClientRect().top;
+            row.querySelector('strong').focus({preventScroll:true});
+            return true;
+        }
         persist(false);renderReport(null);
         section.append(flag,usage,mode,materials,reviewSection);host.append(section);
-        return {section,policy:()=>({...settings,minutesValid,importing,files:[...files]}),renderReport,revealReport,showGate};
+        return {section,policy:()=>({...settings,minutesValid,importing,files:[...files]}),renderReport,revealReport,revealReview,showGate};
     }
     globalThis.XxtExamUI={mount,load};
 })();

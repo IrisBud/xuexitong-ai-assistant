@@ -29,6 +29,7 @@
                 core.validateContext(contextQuestions);
                 result.push({ kind, questions: part.map(x => x.q), images, imageManifest, ...(contextQuestions.length?{contextQuestions}:{}),
                     ...(payload.examReference ? {examReference:payload.examReference} : {}),
+                    ...(payload.examReview===true ? {examReview:true} : {}),
                     history: (payload.history || []).map(h => ({ ...h, answers: (h.answers || []).filter(a => ids.has(a.id)) })) });
                 part = []; weight = 0;
             };
@@ -53,7 +54,7 @@
                 const config = part.kind === 'text' ? { ...base, vision: false } : { ...vision, vision: true };
                 progress({ batch: i + 1, total: parts.length, kind: part.kind, count: part.questions.length });
                 active = transport(config, '/solve', part); let result = await active.promise; check();
-                if(core.answerLanguageMismatches(part.questions,result.answers).length){
+                if(!part.examReview&&core.answerLanguageMismatches(part.questions,result.answers).length){
                     progress({batch:i+1,total:parts.length,kind:part.kind,count:part.questions.length,correctingLanguage:true});
                     active=transport(config,'/solve',{...part,languageCorrection:true});result=await active.promise;check();
                     const invalid=core.answerLanguageMismatches(part.questions,result.answers);
