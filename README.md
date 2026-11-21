@@ -1,8 +1,8 @@
 # 超星学习通 · 学习助手
 
-> **目前脚本最新版本为 1.8.3，请已安装脚本的用户尽快更新。** 从原仓库安装过的用户，请点「一键安装 / 更新脚本」覆盖原脚本并保留设置。覆盖后，后续更新会使用新仓库。
+> **目前脚本最新版本为 1.8.4，请已安装脚本的用户尽快更新。** 从原仓库安装过的用户，请点「一键安装 / 更新脚本」覆盖原脚本并保留设置。覆盖后，后续更新会使用新仓库。
 
-![最新版本](https://img.shields.io/badge/正式版-1.8.3-267356?style=flat-square)
+![最新版本](https://img.shields.io/badge/正式版-1.8.4-267356?style=flat-square)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
 [![Stars](https://img.shields.io/github/stars/IrisBud/xuexitong-ai-assistant?style=flat-square&color=267356)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
 
@@ -82,6 +82,7 @@
 
 | 版本 | 变化 |
 | --- | --- |
+| 1.8.4 · 2026-11-21 | 修复考试复查替换多选答案时无法写入的问题，确认失败会显示当前题号和未更新的选项。 |
 | 1.8.3 · 2026-11-21 | 考试中断后接续已保存进度，首次待复查题由 AI 补充分析，可在面板内确认作答。 |
 | 1.8.2 · 2026-11-21 | 多空富文本作业逐空作答；只跳过当前音视频或资料。并入考试整卷预览、选项回读修复和 AI 自评标注。 |
 | 1.8.0 · 2026-11-20 | 新增考试测试版，支持资料导入及强相关加权、逐题理由与待复查标记、可选自动作答及交卷时间。包含课程讨论辅助和三类人工验证提醒。 |
