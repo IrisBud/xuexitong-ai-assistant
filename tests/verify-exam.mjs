@@ -68,7 +68,7 @@ async function setup(opts={}){
             const answers=questions.map(q=>{
                 const text=q.type==='blank'||q.type==='essay';
                 const low=uncertain&&q.id==='q-2'||uncertainEssay&&q.id==='q-3';
-                return {id:q.id,choices:text?[]:q.type==='multiple'?(review?['B','C']:['A','B']):['A'],
+                return {id:q.id,choices:text?[]:q.type==='multiple'?(review?['B','C']:nativeSave?.wide?['A','B','C','D','E','F']:['A','B']):['A'],
                     ...(text?{texts:['样例术语']}:{}),readable:true,confidence:review?0.99:low?0.42:0.95,
                     explanation:review?(text?'关键推理：辨认定义后给出术语；得分点：术语准确。':q.options.map(({key})=>`${key}：逐项依据`).join('\n')):`示例证据 ${q.id}`};
             });
@@ -78,6 +78,15 @@ async function setup(opts={}){
         document.addEventListener('DOMContentLoaded',()=>{
             if(!document.querySelector('main'))return;
             const main=document.querySelector('main');
+            if(nativeSave?.wide){
+                const choices=main.children[1].querySelector('.stem_answer');
+                for(const key of ['D','E','F']){
+                    const row=choices.firstElementChild.cloneNode(true);
+                    row.querySelector('.num_option').textContent=key;
+                    row.querySelector('.answer_p').textContent='方案 '+key;
+                    choices.append(row);
+                }
+            }
             if(keepOneChoice){
                 const choices=main.children[1].querySelector('.stem_answer');
                 const fourth=choices.lastElementChild.cloneNode(true);
@@ -106,20 +115,39 @@ async function setup(opts={}){
                 if(receipt)location.href='/exam-ans/exam/test/look'+location.search;
             };
             const marker=row=>row.querySelector('.num_option,.num_option_dx');
-            const markClass=row=>nativeSave?.staleAria&&row.getAttribute('role')==='checkbox'?'check_answer_dx':'check_answer';
-            const selected=row=>classOnly||nativeSave?.staleAria?marker(row).classList.contains(markClass(row)):row.getAttribute('aria-checked')==='true';
+            const markClass=row=>nativeSave&&row.getAttribute('role')==='checkbox'?'check_answer_dx':'check_answer';
+            const selected=row=>classOnly||nativeSave?marker(row).classList.contains(markClass(row)):row.getAttribute('aria-checked')==='true';
             function mark(row,checked){
-                if(classOnly||nativeSave?.staleAria)marker(row).classList.toggle(markClass(row),checked);
-                else row.setAttribute('aria-checked',String(checked));
+                if(classOnly||nativeSave)marker(row).classList.toggle(markClass(row),checked);
+                if(!classOnly&&!nativeSave?.staleAria)row.setAttribute('aria-checked',String(checked));
+            }
+            function updateDraft(question){
+                const draft=question.querySelector('[data-fixture-draft]');
+                if(draft)draft.value=Array.from(question.querySelectorAll('.answerBg')).filter(selected).map(row=>marker(row).textContent).join('');
+            }
+            function changeChoice(row){
+                const question=row.closest('.questionLi');
+                if(refuseWrite&&question===main.children[1])return false;
+                if(keepOneChoice&&row.getAttribute('role')==='checkbox'&&selected(row)&&
+                    row.parentElement.querySelectorAll('[aria-checked=true]').length===1)return false;
+                const checked=!selected(row);
+                const single=row.getAttribute('role')==='radio';
+                if(single)for(const item of row.parentElement.querySelectorAll('[role=radio]'))mark(item,false);
+                mark(row,single||checked);
+                updateDraft(question);
+                counters.fill++;
+                return true;
             }
             const saved=new Map(), timers=new Map();
             if(nativeSave){
                 document.body.insertAdjacentHTML('beforeend','<form id="submitTest"></form><input hidden id="saveUrl" value="/fixture/native-save"><ul id="topicNumberScroll"></ul>');
-                counters.native={dropped:0,requests:[],saved:0};
+                counters.native={dropped:0,requests:[],saved:0,answers:{}};
                 for(const [index,question] of Array.from(main.children).entries()){
                     question.id='sigleQuestionDiv_'+(index+1);
                     document.querySelector('#topicNumberScroll').insertAdjacentHTML('beforeend','<li id="answerSheet'+(index+1)+'"></li>');
-                    if(nativeSave.staleAria){
+                    question.insertAdjacentHTML('beforeend','<form><input type="hidden" name="questionId" value="'+(index+1)+'"></form>');
+                    if(question.querySelector('.answerBg')){
+                        question.querySelector('form').insertAdjacentHTML('beforeend','<input type="hidden" data-fixture-draft>');
                         for(const row of question.querySelectorAll('.answerBg')){
                             const choice=marker(row);
                             choice.setAttribute('qid',String(index+1));
@@ -128,6 +156,7 @@ async function setup(opts={}){
                         }
                     }
                 }
+                window.addChoice=window.addMultipleChoice=choice=>changeChoice(choice.closest('.answerBg'));
                 window.changeQuestionCardColor=id=>{
                     document.getElementById('answerSheet'+id).classList.toggle('active',Boolean(saved.get(Number(id))?.length));
                 };
@@ -138,9 +167,8 @@ async function setup(opts={}){
                     counters.native.requests.push(id);
                     question.classList.add('_unsavedstate');
                     window.submitOnce=true;
-                    const values=[...question.querySelectorAll('.answerBg')].filter(selected)
-                        .map(row=>marker(row).textContent);
-                    const text=question.querySelector('input')?.value;
+                    const values=Array.from(question.querySelector('[data-fixture-draft]')?.value||'');
+                    const text=question.querySelector('input[type=text]')?.value;
                     if(text)values.push(text);
                     const failed=id===nativeSave.failFirst&&counters.native.requests.filter(q=>q===id).length===1;
                     const responseJSON={status:failed?'error':'success'};
@@ -151,37 +179,44 @@ async function setup(opts={}){
                         if(!failed){
                             saved.set(id,values);
                             counters.native.saved=saved.size;
+                            counters.native.answers[id]=values;
                             question.classList.remove('_unsavedstate');
                             callback?.();
                         }
                         window.submitOnce=false;
                         window.submitAjaxHandle=null;
-                        const jq=window.jQuery(document);
-                        jq.trigger('ajaxComplete',[{status:200,responseJSON:{status:'error'}},{url,type:'POST',data:'questionId=999'}]);
-                        jq.trigger('ajaxComplete',[response,{url,type:'POST',data:'questionId='+id}]);
+                        if(!nativeSave.silent){
+                            const jq=window.jQuery(document);
+                            jq.trigger('ajaxComplete',[{status:200,responseJSON:{status:'error'}},{url,type:'POST',data:'questionId=999'}]);
+                            jq.trigger('ajaxComplete',[response,{url,type:'POST',data:'questionId='+id}]);
+                        }
                         if(id===3&&nativeSave.eraseFirst){
                             for(const row of main.children[0].querySelectorAll('.answerBg'))mark(row,false);
                         }
                     },75);
                 };
-                if(nativeSave.initialUnconfirmed)mark(main.querySelector('.answerBg'),true);
+                if(nativeSave.initialUnconfirmed){
+                    mark(main.querySelector('.answerBg'),true);
+                    updateDraft(main.firstElementChild);
+                }
+                if(nativeSave.replaceExisting){
+                    const question=main.children[1];
+                    for(const row of [...question.querySelectorAll('.answerBg')].slice(0,2))mark(row,true);
+                    updateDraft(question);
+                    saved.set(2,['A','B']);
+                    counters.native.answers[2]=['A','B'];
+                    window.changeQuestionCardColor('2');
+                }
             }
             for(const row of document.querySelectorAll('.answerBg')){
                 if(classOnly)row.removeAttribute('aria-checked');
                 row.onclick=()=>{
-                    if(refuseWrite&&row.closest('.questionLi')===main.children[1])return;
-                    if(keepOneChoice&&row.getAttribute('role')==='checkbox'&&selected(row)&&
-                        row.parentElement.querySelectorAll('[aria-checked=true]').length===1)return;
-                    const checked=!selected(row);
-                    const single=row.getAttribute('role')==='radio';
-                    if(single)for(const item of row.parentElement.querySelectorAll('[role=radio]'))mark(item,false);
-                    mark(row,single||checked);
-                    counters.fill++;
+                    if(!changeChoice(row))return;
                     if(nativeSave){
                         const question=row.closest('.questionLi');
                         const id=question.id.split('_').at(-1);
                         const save=()=>window.submitForm(true,question,()=>window.changeQuestionCardColor(id));
-                        if(single)save();
+                        if(row.getAttribute('role')==='radio')save();
                         else {
                             clearTimeout(timers.get(id));
                             timers.set(id,setTimeout(save,100));
@@ -190,7 +225,7 @@ async function setup(opts={}){
                     if(stopPartway&&counters.fill===2)document.querySelector('[data-xxt-exam-page] [data-action=stop]').click();
                 };
             }
-            document.querySelector('main input').addEventListener('input',()=>counters.text++);
+            document.querySelector('main input[type=text]').addEventListener('input',()=>counters.text++);
         });
     },opts);
     const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));
@@ -214,6 +249,42 @@ async function scenario(name,opts,check){
     } finally{await context.close();}
 }
 try {
+    await scenario('one-confirmation-writes-the-entire-six-option-answer-without-global-ajax-events',
+        {uncertain:true,nativeSave:{wide:true,silent:true}},async page=>{
+        await start(page,'solve');await waitText(page,'已生成答案与理由');
+        const card=nthReview(page,2);
+        const choices=card.getByRole('checkbox');
+        for(const index of [0,1,2,3,4,5])await choices.nth(index).check();
+        await card.getByRole('button',{name:'确认作答'}).click();
+        await page.waitForFunction(()=>Boolean(counters.native.answers[2]));
+        assert.deepEqual((await stats(page)).native.answers[2],['A','B','C','D','E','F']);
+        await waitText(page,'复查已完成');
+        assert.equal(await card.getAttribute('data-state'),'ready');
+        assert.deepEqual((await stats(page)).native.requests,[2]);
+    });
+    await scenario('automatic-answer-saves-later-multiple-choice-options-in-one-request',
+        {nativeSave:{wide:true,silent:true}},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);await waitText(page,'已核对 3 题');
+        const checked=await stats(page);
+        assert.deepEqual(checked.native.answers[2],['A','B','C','D','E','F']);
+        assert.deepEqual(checked.native.requests,[1,2,3]);
+        assert.equal(checked.native.dropped,0);
+        assert.equal(await page.locator('[data-exam-review] [data-state=review]').count(),0);
+    });
+    await scenario('one-confirmation-replaces-two-existing-choices-with-four-later-choices',
+        {uncertain:true,nativeSave:{wide:true,silent:true,replaceExisting:true}},async page=>{
+        await start(page,'solve');await waitText(page,'已生成答案与理由');
+        const card=nthReview(page,2);
+        const choices=card.getByRole('checkbox');
+        for(const index of [0,1])await choices.nth(index).uncheck();
+        for(const index of [2,3,4,5])await choices.nth(index).check();
+        await card.getByRole('button',{name:'确认作答'}).click();
+        await waitText(page,'复查已完成');
+        assert.deepEqual((await stats(page)).native.answers[2],['C','D','E','F']);
+        assert.deepEqual((await stats(page)).native.requests,[2]);
+        assert.equal(await card.getAttribute('data-state'),'ready');
+    });
     await scenario('optimistic-selection-waits-for-native-save-on-a-fifty-question-paper',
         {nativeSave:{},extraQuestions:47},async page=>{
         await choice(page,'answer-auto').click();
@@ -228,12 +299,14 @@ try {
     await scenario('unconfirmed-existing-selection-is-saved-and-a-failed-receipt-can-resume',
         {nativeSave:{initialUnconfirmed:true,failFirst:2}},async page=>{
         await choice(page,'answer-auto').click();await choice(page,'submit-auto').click();
-        await start(page);await waitText(page,'还有 1 题待复查');
+        await start(page);await waitText(page,'还有 1 题保存待确认');
         const checked=await stats(page);
         assert.deepEqual(checked.native.requests,[1,2,3]);
         assert.deepEqual([checked.native.saved,checked.open,checked.confirm],[2,0,0]);
         assert.deepEqual(checked.reviewRequests,[]);
         assert.match(await nthReview(page,2).innerText(),/学习通未确认保存/);
+        assert.equal(await nthReview(page,2).locator('.xxt-exam-review-label').textContent(),'保存待确认');
+        assert.match(await nthReview(page,2).innerText(),/AI 自评 95%/);
         assert.equal(await page.locator('main [role=radio][aria-checked=true]').count(),1);
         await choice(page,'submit-manual').click();
         await start(page);await waitText(page,'已核对 3 题');
@@ -244,7 +317,7 @@ try {
     await scenario('final-paper-read-detects-an-earlier-choice-cleared-after-saving',
         {nativeSave:{eraseFirst:true}},async page=>{
         await choice(page,'answer-auto').click();await choice(page,'submit-auto').click();
-        await start(page);await waitText(page,'还有 1 题待复查');
+        await start(page);await waitText(page,'还有 1 题保存待确认');
         assert.match(await nthReview(page,1).innerText(),/整卷复查/);
         const checked=await stats(page);
         assert.deepEqual([checked.open,checked.confirm],[0,0]);

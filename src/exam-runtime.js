@@ -108,7 +108,7 @@
             explanation:[problem,answer?.explanation].filter(Boolean).join('\n')||'AI 未提供理由，请核对。'};
     }
     function approveItem(item,q,answer){
-        return {...item,review:false,confirmed:answerLabel(q,answer)};
+        return {...item,review:false,saveIssue:false,confirmed:answerLabel(q,answer)};
     }
     function snapshot(entries){return JSON.stringify(entries.map(entry=>entry.question));}
 
@@ -339,7 +339,10 @@
         if(remaining){
             await reviewPending(fresh,items,subject,settings,progress);
             view.revealReview();
-            notice(`已核对 ${filled} 题。还有 ${remaining} 题待复查，请在面板里确认作答。自动交卷已停止。`);
+            const saves=items.filter(item=>item.review&&item.saveIssue).length;
+            const reviews=remaining-saves;
+            const pendingSummary=[reviews?`${reviews} 题待复查`:'',saves?`${saves} 题保存待确认`:''].filter(Boolean).join('、');
+            notice(`已核对 ${filled} 题。还有 ${pendingSummary}，请在面板里确认作答。自动交卷已停止。`);
             return;
         }
         writeReport(items,subject.at,fresh);

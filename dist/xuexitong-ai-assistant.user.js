@@ -7977,10 +7977,12 @@ startxref
         const seconds=Math.ceil(ms/1000);
         return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     };
+    const confidenceHelp='每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查。保存待确认表示学习通还没有确认这道题的保存。';
+    const reviewLabel=item=>item.saveIssue?'保存待确认':'待复查';
     function plainReport(report){
-        return ['考试作答理由','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查，可在面板内人工确认。',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
+        return ['考试作答理由',confidenceHelp,report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
             const confidence=item.confidence===null?'':` · AI 自评 ${Math.round(100*item.confidence)}%`;
-            return [`第 ${item.number} 题${item.review?' · 待复查':''}${confidence}${item.image?' · 含图':''}`,item.stem,
+            return [`第 ${item.number} 题${item.review?' · '+reviewLabel(item):''}${confidence}${item.image?' · 含图':''}`,item.stem,
                 item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.confirmed?`人工已确认 ${item.confirmed}`:'',item.explanation,
                 item.secondPass?`AI 复核${item.secondPass.answer?' · '+item.secondPass.answer:''}\n${item.secondPass.explanation}`:''].filter(Boolean).join('\n');
         })].filter(Boolean).join('\n\n');
@@ -8073,7 +8075,7 @@ startxref
         const reviewLink=button('去复查');reviewLink.dataset.examGotoReview='true';reviewLink.hidden=true;
         reviewLink.onclick=()=>revealReview();
         const progressRow=el('div',null,'xxt-exam-review-summary');progressRow.append(progress,reviewLink);
-        const confidenceNote=el('p','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查，可在面板内人工确认。','xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
+        const confidenceNote=el('p',confidenceHelp,'xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
         const review=el('div',null,'xxt-exam-review');review.dataset.examReview='true';review.setAttribute('role','region');review.setAttribute('aria-label','作答理由和待复查题目');review.tabIndex=0;
         reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,confidenceNote,progressRow,review);
         exportButton.onclick=()=>{
@@ -8137,14 +8139,15 @@ startxref
             const items=next?.items||[];exportButton.disabled=!items.length;
             reviewLink.hidden=!items.some(item=>item.review);
             if(!items.length){review.append(el('p',phase==='result'?'本卷暂无可读取的理由记录。':'运行后，这里会显示逐题答案与理由。','xxt-exam-muted'));progress.textContent='';return;}
-            const uncertain=items.filter(item=>item.review).length;
-            progress.textContent=`已生成 ${items.length} 题理由${uncertain?` · ${uncertain} 题待复查`:''}`;
+            const uncertain=items.filter(item=>item.review&&!item.saveIssue).length;
+            const unsaved=items.filter(item=>item.review&&item.saveIssue).length;
+            progress.textContent=`已生成 ${items.length} 题理由${uncertain?` · ${uncertain} 题待复查`:''}${unsaved?` · ${unsaved} 题保存待确认`:''}`;
             for(const item of items){
                 const row=el('article',null,'xxt-exam-reason');row.dataset.state=item.review?'review':'ready';
                 if(item.id)row.dataset.examReasonId=item.id;
                 const heading=el('strong',`第 ${item.number} 题`);heading.tabIndex=-1;
                 const head=el('div',null,'xxt-exam-reason-head');head.append(heading);
-                if(item.review)head.append(el('span','待复查','xxt-exam-review-label'));
+                if(item.review)head.append(el('span',reviewLabel(item),'xxt-exam-review-label'));
                 if(item.confidence!==null)head.append(el('span',`AI 自评 ${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
                 const answer=el('p',item.answer||'未生成可用答案','xxt-exam-answer');
                 answer.setAttribute('aria-label',`建议答案 ${item.answer||'未生成'}`);
@@ -9753,13 +9756,14 @@ startxref
         });
     }
 
+    const choiceMarker = row => row.querySelector('.saveSingleSelect.num_option[qid][data],.saveMultiSelect.num_option_dx[qid][data]');
     function read(entry) {
         if(entry.question.type==='unsupported'||!entry.element.isConnected)return null;
         if(entry.rows.length){
             if(entry.rows.some(row=>!entry.element.contains(row)))return null;
             try {
                 return entry.rows.flatMap((row,i)=>{
-                    const marker=row.querySelector('.saveSingleSelect.num_option[qid][data],.saveMultiSelect.num_option_dx[qid][data]');
+                    const marker=choiceMarker(row);
                     const checked=marker
                         ? marker.classList.contains('check_answer')||marker.classList.contains('check_answer_dx')
                         : XxtCodexDom.selected(row);
@@ -9781,11 +9785,9 @@ startxref
     function nativeSave(entry) {
         const doc=entry.element.ownerDocument;
         const id=/^sigleQuestionDiv_(\d+)$/.exec(entry.element.id)?.[1];
-        const destination=doc.querySelector('#saveUrl')?.value;
-        if(!id||!destination||!doc.querySelector('#submitTest'))return null;
-        const url=new URL(destination,doc.URL);
+        if(!id||!doc.querySelector('#saveUrl')?.value||!doc.querySelector('#submitTest'))return null;
         const site=typeof unsafeWindow!=='undefined'&&unsafeWindow.document===doc?unsafeWindow:doc.defaultView;
-        return {doc,id,url,site,query:site.$||site.jQuery,card:doc.getElementById('answerSheet'+id)};
+        return {id,site,card:doc.getElementById('answerSheet'+id)};
     }
     const nativeBusy = ({site}) => Boolean(site.submitOnce||site.submitAjaxHandle);
     const savedOnPaper = (entry,native) => native.card?.classList.contains('active') &&
@@ -9810,47 +9812,36 @@ startxref
             throw saveError('上一笔学习通保存尚未结束，请稍后继续。');
         }
     }
-    async function writeWithReceipt(entry,native,guard,action) {
-        if(!native){action();return;}
-        const {doc,id,url,query}=native;
-        if(url.origin!==doc.location.origin||!native.card||typeof query!=='function'){
-            throw saveError('无法读取学习通的原生保存结果，请在试卷中确认作答。');
-        }
-        // The native page changes the selection before saving and drops writes
-        // while its shared save lock is held.
+    async function saveQuestion(entry,native,guard) {
         await waitForNativeSaveSlot(native,guard);
-        const page=query(doc);
-        let saved;
-        function receipt(_event,xhr,request){
-            if(!URL.canParse(request?.url,doc.URL))return;
-            const requestUrl=new URL(request.url,doc.URL);
-            if(requestUrl.origin!==url.origin||requestUrl.pathname!==url.pathname||
-                String(request.type).toUpperCase()!=='POST'||typeof request.data!=='string')return;
-            const ids=new URLSearchParams(request.data).getAll('questionId');
-            if(!ids.at(-1)?.split(',').includes(id))return;
-            const response=xhr.responseJSON;
-            const rejected=[false,'error','submitted','forceSubmitted','resetTimeOver','stopExam','answerLocked','terminalLocked'];
-            saved=Boolean(xhr.status>=200&&xhr.status<300&&response&&
-                !response.error&&!rejected.includes(response.status)&&savedOnPaper(entry,native));
+        guard();
+        if(!entry.element.isConnected)throw saveError('原生试卷已变化，请重新核对。');
+        const save=[...entry.element.querySelectorAll('.saveButtonClass')].filter(available);
+        const {site,id,card}=native;
+        const query=site.$||site.jQuery;
+        if(!card||save.length>1||(save.length===1&&!enabled(save[0]))||
+            (!save.length&&(typeof query!=='function'||typeof site.submitForm!=='function'||typeof site.changeQuestionCardColor!=='function'))){
+            throw saveError('未找到可用的原生保存操作，请在试卷中核对。');
         }
-        page.on('ajaxComplete',receipt);
-        try {
-            action();
-            if(!await waitUntil(()=>saved!==undefined&&!nativeBusy(native),guard)||!saved){
-                throw saveError('学习通未确认保存这一题。可重新开始以续填，或在原生试卷中手动保存。');
-            }
-        } finally {page.off('ajaxComplete',receipt);}
-    }
-    function saveCurrent(entry,native) {
-        const save=[...entry.element.querySelectorAll('.saveButtonClass')].filter(enabled);
-        if(save.length===1){save[0].click();return;}
-        const {site,id,query}=native;
-        if(save.length||typeof site.submitForm!=='function'||typeof site.changeQuestionCardColor!=='function'){
-            throw saveError('未找到可用的原生保存操作，请在试卷中手动保存。');
+        let confirmed=false;
+        if(save.length){
+            save[0].click();
+        } else {
+            site.submitForm(true,query(entry.element),()=>{
+                site.changeQuestionCardColor(id);
+                confirmed=true;
+            });
         }
-        // Retry the existing value through the platform's own temporary-save
-        // handler without toggling an already selected option.
-        site.submitForm(true,query(entry.element),()=>site.changeQuestionCardColor(id));
+        const received=()=>save.length?!available(save[0]):confirmed;
+        let started=nativeBusy(native);
+        await waitUntil(()=>{
+            const busy=nativeBusy(native);
+            started||=busy;
+            return !busy&&(started||received());
+        },guard);
+        if(nativeBusy(native)||!received()||!savedOnPaper(entry,native)){
+            throw saveError('学习通未确认保存这一题。可再次确认作答，或重新开始以续填。');
+        }
     }
     function reviewOptions(entry) {
         const {question,fields,rows,media}=entry;
@@ -9877,13 +9868,18 @@ startxref
     }
     async function fill(entry,answer,guard,{replace=false,onWrite=()=>{}}={}){
         guard();
+        const native=nativeSave(entry);
+        if(native){
+            const formId=entry.element.querySelector('form')?.querySelector('input[name="questionId"]')?.value;
+            if(!native.card||formId!==native.id)throw saveError('无法核对学习通的原生题号和暂存表单。');
+            await waitForNativeSaveSlot(native,guard);
+        }
         if(!entry.element.isConnected)throw Error('当前题目已更换。');
         const current=read(entry), expected=target(entry,answer);
         if(!current||!expected)throw Error('无法确认平台作答状态。');
-        const native=nativeSave(entry);
         if(same(current,expected)){
             if(native&&(replace||!savedOnPaper(entry,native))){
-                await writeWithReceipt(entry,native,guard,()=>saveCurrent(entry,native));
+                await saveQuestion(entry,native,guard);
                 onWrite(read(entry),true);
             }
             return true;
@@ -9894,25 +9890,38 @@ startxref
             // Select the replacement before removing old choices. Removing the last
             // choice first can leave the question blank or be rejected by the page.
             const changes=[...expected.filter(key=>!current.includes(key)).map(key=>[key,true]),...remove.map(key=>[key,false])];
-            const controls=changes.map(([key,checked])=>({key,checked,row:entry.rows[entry.question.options.findIndex(o=>o.key===key)]}));
+            const controls=changes.map(([key,checked])=>{
+                const row=entry.rows[entry.question.options.findIndex(o=>o.key===key)];
+                return {key,checked,row,marker:native&&row?choiceMarker(row):null};
+            });
             if(controls.some(({row})=>!enabled(row)))throw Error('原生答题选项已变化。');
-            for(const {key,checked,row} of controls){
+            const method=entry.question.type==='multiple'?'addMultipleChoice':'addChoice';
+            if(native&&(typeof native.site[method]!=='function'||
+                controls.some(({marker})=>marker?.getAttribute('qid')!==native.id))){
+                throw saveError('无法识别学习通的原生选项控件，请在试卷中核对。');
+            }
+            for(const {key,checked,row,marker} of controls){
                 guard();
                 const before=read(entry);
                 if(!before||!enabled(row))throw Error('原生答题选项已变化。');
                 if(before.includes(key)===checked)continue;
                 if(!checked&&!expected.every(choice=>before.includes(choice)))throw Error('学习通未保留所有目标选项，请核对原生试卷。');
-                await writeWithReceipt(entry,native,guard,()=>{
+                if(native){
+                    // Update the platform's question draft without firing the per-option save handler.
+                    native.site[method](marker);
+                } else {
                     row.click();
-                    if(native)onWrite(read(entry),false);
-                });
-                for(let attempt=0;attempt<10&&read(entry)?.includes(key)!==checked;attempt++){await pause(70);guard();}
+                    for(let attempt=0;attempt<10&&read(entry)?.includes(key)!==checked;attempt++){await pause(70);guard();}
+                }
                 const updated=read(entry);
-                if(updated?.includes(key)!==checked)throw Error(`学习通未确认选项 ${key} 的变更，请核对原生试卷。`);
-                onWrite(updated,true);
+                if(updated?.includes(key)!==checked){
+                    if(native&&updated)onWrite(updated,false);
+                    const message=`学习通未确认选项 ${key} 的变更，请核对原生试卷。`;
+                    throw native?saveError(message):Error(message);
+                }
+                if(!native)onWrite(updated,true);
             }
         } else {
-            if(native)await waitForNativeSaveSlot(native,guard);
             for(const [i,field] of entry.fields.entries()){
                 guard();
                 if(!enabled(field)||field.readOnly)throw Error('原生答题输入框已变化。');
@@ -9921,15 +9930,17 @@ startxref
                 field.value=expected[i];
                 field.dispatchEvent(new Event('input',{bubbles:true}));
                 field.dispatchEvent(new Event('change',{bubbles:true}));
-                if(field.value.trim()===expected[i])onWrite(read(entry),!native);
-            }
-            if(native){
-                await writeWithReceipt(entry,native,guard,()=>saveCurrent(entry,native));
-                onWrite(read(entry),true);
+                if(!native&&field.value.trim()===expected[i])onWrite(read(entry),true);
             }
         }
         guard();
         if(!matches(entry,answer))throw Error('页面未确认答案，请人工核对。');
+        if(native){
+            onWrite(read(entry),false);
+            await saveQuestion(entry,native,guard);
+            if(!savedMatch(entry,answer))throw saveError('学习通保存后，页面作答与本次整题答案不一致。');
+            onWrite(read(entry),true);
+        }
         return true;
     }
 
@@ -10054,7 +10065,7 @@ startxref
             explanation:[problem,answer?.explanation].filter(Boolean).join('\n')||'AI 未提供理由，请核对。'};
     }
     function approveItem(item,q,answer){
-        return {...item,review:false,confirmed:answerLabel(q,answer)};
+        return {...item,review:false,saveIssue:false,confirmed:answerLabel(q,answer)};
     }
     function snapshot(entries){return JSON.stringify(entries.map(entry=>entry.question));}
 
@@ -10285,7 +10296,10 @@ startxref
         if(remaining){
             await reviewPending(fresh,items,subject,settings,progress);
             view.revealReview();
-            notice(`已核对 ${filled} 题。还有 ${remaining} 题待复查，请在面板里确认作答。自动交卷已停止。`);
+            const saves=items.filter(item=>item.review&&item.saveIssue).length;
+            const reviews=remaining-saves;
+            const pendingSummary=[reviews?`${reviews} 题待复查`:'',saves?`${saves} 题保存待确认`:''].filter(Boolean).join('、');
+            notice(`已核对 ${filled} 题。还有 ${pendingSummary}，请在面板里确认作答。自动交卷已停止。`);
             return;
         }
         writeReport(items,subject.at,fresh);

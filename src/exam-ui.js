@@ -19,10 +19,12 @@
         const seconds=Math.ceil(ms/1000);
         return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     };
+    const confidenceHelp='每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查。保存待确认表示学习通还没有确认这道题的保存。';
+    const reviewLabel=item=>item.saveIssue?'保存待确认':'待复查';
     function plainReport(report){
-        return ['考试作答理由','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查，可在面板内人工确认。',report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
+        return ['考试作答理由',confidenceHelp,report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
             const confidence=item.confidence===null?'':` · AI 自评 ${Math.round(100*item.confidence)}%`;
-            return [`第 ${item.number} 题${item.review?' · 待复查':''}${confidence}${item.image?' · 含图':''}`,item.stem,
+            return [`第 ${item.number} 题${item.review?' · '+reviewLabel(item):''}${confidence}${item.image?' · 含图':''}`,item.stem,
                 item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.confirmed?`人工已确认 ${item.confirmed}`:'',item.explanation,
                 item.secondPass?`AI 复核${item.secondPass.answer?' · '+item.secondPass.answer:''}\n${item.secondPass.explanation}`:''].filter(Boolean).join('\n');
         })].filter(Boolean).join('\n\n');
@@ -115,7 +117,7 @@
         const reviewLink=button('去复查');reviewLink.dataset.examGotoReview='true';reviewLink.hidden=true;
         reviewLink.onclick=()=>revealReview();
         const progressRow=el('div',null,'xxt-exam-review-summary');progressRow.append(progress,reviewLink);
-        const confidenceNote=el('p','每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查，可在面板内人工确认。','xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
+        const confidenceNote=el('p',confidenceHelp,'xxt-exam-muted');confidenceNote.dataset.examConfidenceNote='true';
         const review=el('div',null,'xxt-exam-review');review.dataset.examReview='true';review.setAttribute('role','region');review.setAttribute('aria-label','作答理由和待复查题目');review.tabIndex=0;
         reviewHead.append(el('h3','作答理由'),exportButton);reviewSection.append(reviewHead,confidenceNote,progressRow,review);
         exportButton.onclick=()=>{
@@ -179,14 +181,15 @@
             const items=next?.items||[];exportButton.disabled=!items.length;
             reviewLink.hidden=!items.some(item=>item.review);
             if(!items.length){review.append(el('p',phase==='result'?'本卷暂无可读取的理由记录。':'运行后，这里会显示逐题答案与理由。','xxt-exam-muted'));progress.textContent='';return;}
-            const uncertain=items.filter(item=>item.review).length;
-            progress.textContent=`已生成 ${items.length} 题理由${uncertain?` · ${uncertain} 题待复查`:''}`;
+            const uncertain=items.filter(item=>item.review&&!item.saveIssue).length;
+            const unsaved=items.filter(item=>item.review&&item.saveIssue).length;
+            progress.textContent=`已生成 ${items.length} 题理由${uncertain?` · ${uncertain} 题待复查`:''}${unsaved?` · ${unsaved} 题保存待确认`:''}`;
             for(const item of items){
                 const row=el('article',null,'xxt-exam-reason');row.dataset.state=item.review?'review':'ready';
                 if(item.id)row.dataset.examReasonId=item.id;
                 const heading=el('strong',`第 ${item.number} 题`);heading.tabIndex=-1;
                 const head=el('div',null,'xxt-exam-reason-head');head.append(heading);
-                if(item.review)head.append(el('span','待复查','xxt-exam-review-label'));
+                if(item.review)head.append(el('span',reviewLabel(item),'xxt-exam-review-label'));
                 if(item.confidence!==null)head.append(el('span',`AI 自评 ${Math.round(100*item.confidence)}%`,'xxt-exam-confidence'));
                 const answer=el('p',item.answer||'未生成可用答案','xxt-exam-answer');
                 answer.setAttribute('aria-label',`建议答案 ${item.answer||'未生成'}`);
