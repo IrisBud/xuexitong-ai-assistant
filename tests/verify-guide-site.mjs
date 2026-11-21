@@ -31,15 +31,32 @@ async function exposure(page,index){return page.locator('.fan-card').nth(index).
 try{
  await check('static-pages-and-local-links',async()=>{assert.equal(htmlFiles.length,11);assert(localLinks>200);});
  await check('desktop-fan-each-card-is-exposed-and-lifts-on-pointer',async()=>{
-  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await pageAt(context);assert.equal(await page.locator('.fan-card').count(),6);
-  for(let index=0;index<6;index++){await page.mouse.move(20,130);await page.waitForTimeout(270);const point=await exposure(page,index);assert(point,`Card ${index} has no clickable exposed area`);await page.mouse.move(point.x,point.y);await page.waitForTimeout(280);assert(await page.locator('.fan-card').nth(index).evaluate(n=>n.classList.contains('is-active')));assert.match(await page.locator('.fan-card').nth(index).getAttribute('style'),/translateY\(-44px\)/);}
+  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await pageAt(context);assert.equal(await page.locator('.fan-card').count(),8);
+  for(let index=0;index<8;index++){await page.mouse.move(20,130);await page.waitForTimeout(270);const point=await exposure(page,index);assert(point,`Card ${index} has no clickable exposed area`);await page.mouse.move(point.x,point.y);await page.waitForTimeout(280);assert(await page.locator('.fan-card').nth(index).evaluate(n=>n.classList.contains('is-active')));assert.match(await page.locator('.fan-card').nth(index).getAttribute('style'),/translateY\(-44px\)/);}
   await page.screenshot({path:resolve(out,'home-fan-active-1440.png')});await page.mouse.move(20,130);await page.waitForTimeout(280);assert.equal(await page.locator('.fan-card.is-active').count(),0);assert.equal(await page.locator('.fan-card.is-selected').evaluate(n=>n.style.zIndex),'10');await page.screenshot({path:resolve(out,'home-1440.png'),fullPage:true});await context.close();
  });
  await check('keyboard-card-activation-is-instant-and-navigates',async()=>{
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await pageAt(context);await page.keyboard.press('Tab');const link=page.locator('.fan-card').first();await link.focus();assert.equal(await link.evaluate(n=>getComputedStyle(n).transitionDuration),'0s');await link.press('Enter');await page.waitForURL('**/guides/start.html');assert.match(await page.locator('h1').textContent(),/安装/);await context.close();
  });
  await check('reduced-motion-keeps-fan-static-but-links-work',async()=>{
-  const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'}),page=await pageAt(context);const link=page.locator('.fan-card').last(),before=await link.evaluate(n=>getComputedStyle(n).transform);const point=await exposure(page,5);await page.mouse.move(point.x,point.y);assert.equal(await link.evaluate(n=>getComputedStyle(n).transform),before);await link.click();await page.waitForURL('**/guides/troubleshooting.html');await page.screenshot({path:resolve(out,'troubleshooting-1440.png'),fullPage:true});await context.close();
+  const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'}),page=await pageAt(context);const link=page.locator('.fan-card').last(),before=await link.evaluate(n=>getComputedStyle(n).transform);const point=await exposure(page,7);await page.mouse.move(point.x,point.y);assert.equal(await link.evaluate(n=>getComputedStyle(n).transform),before);await link.click();await page.waitForURL('**/guides/troubleshooting.html');await page.screenshot({path:resolve(out,'troubleshooting-1440.png'),fullPage:true});await context.close();
+ });
+ await check('discussion-and-exam-cards-shortcuts-index-and-search-open-their-sections',async()=>{
+  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true}),page=await pageAt(context);
+  for(const [anchor,label,query] of [['discussion','章节讨论','章节讨论'],['exam','考试辅助（测试版）','整卷预览']]){
+   const href=`guides/answers.html#${anchor}`;
+   for(const scope of ['[data-fan]','.topic-shortcuts','[data-guide-index]']){
+    const link=page.locator(`${scope} a[href="${href}"]`);assert.match(await link.textContent(),new RegExp(label.split('（')[0]));
+    await link.click();await page.waitForURL(`**/${href}`);
+    assert.equal(await page.locator(`#${anchor} h2`).textContent(),label);
+    await page.goto(base);
+   }
+   await page.getByRole('searchbox',{name:'搜索教程'}).fill(query);
+   const result=page.locator('.search-result').first();await result.waitFor();
+   assert.equal(await result.getAttribute('href'),href);await result.click();await page.waitForURL(`**/${href}`);
+   await page.goto(base);
+  }
+  await context.close();
  });
  await check('search-finds-topic-keywords-and-no-results-retains-directory',async()=>{
   const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await pageAt(context);const input=page.getByRole('searchbox',{name:'搜索教程'});await input.fill('WorkBuddy');await page.waitForFunction(()=>document.querySelector('[data-search-status]').textContent.includes('找到'));assert((await page.locator('.search-result').allTextContents()).some(t=>t.includes('WorkBuddy')));await input.fill('面板');await page.waitForFunction(()=>document.querySelectorAll('.search-result').length>1);await page.screenshot({path:resolve(out,'search-results.png')});await input.fill('nothing-matches-this-8842');await page.waitForFunction(()=>document.querySelector('[data-search-status]').textContent.includes('没有找到'));assert(await page.locator('[data-guide-index]').isVisible());await input.fill('');assert(await page.locator('[data-guide-index]').isVisible());await context.close();
@@ -47,7 +64,7 @@ try{
  await check('search-index-failure-has-recovery-and-html-query-is-inert',async()=>{
   const context=await browser.newContext(),page=await pageAt(context);await page.route('**/search-index.json',route=>route.fulfill({status:503,body:'unavailable'}));await page.locator('#guide-search').fill('AI');await page.waitForFunction(()=>document.querySelector('[data-search-status]').textContent.includes('加载失败'));assert(await page.locator('[data-guide-index]').isVisible());await page.unroute('**/search-index.json');await page.locator('#guide-search').fill('<img src=x onerror=alert(1)>');await page.waitForFunction(()=>document.querySelector('[data-search-status]').textContent.includes('没有找到'));assert.equal(await page.locator('[data-search-results] img').count(),0);await context.close();
  });
- for(const width of [390,768,1024])await check(`responsive-home-${width}-no-page-overflow`,async()=>{
+ for(const width of [390,681,768,1024])await check(`responsive-home-${width}-no-page-overflow`,async()=>{
   const context=await browser.newContext({viewport:{width,height:width===390?844:1000},hasTouch:width===390,isMobile:width===390}),page=await pageAt(context);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert(await page.getByRole('link',{name:'第一次使用',exact:true}).isVisible());if(width===390){assert.equal(await page.locator('[data-fan]').evaluate(n=>getComputedStyle(n).overflowX),'auto');await page.locator('.fan-card').last().scrollIntoViewIfNeeded();await page.locator('.fan-card').last().click();await page.waitForURL('**/guides/troubleshooting.html');assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.screenshot({path:resolve(out,'article-390.png'),fullPage:true});await page.goto(base);}await page.screenshot({path:resolve(out,`home-${width}.png`),fullPage:true});await context.close();
  });
  await check('all-ten-articles-images-anchors-and-narrow-layout',async()=>{

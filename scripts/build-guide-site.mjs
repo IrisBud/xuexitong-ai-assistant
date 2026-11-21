@@ -13,6 +13,8 @@ const covers=[
  ['start','#dfdec6','#2a5c49','<rect x="34" y="30" width="150" height="150" rx="75" fill="none" stroke-width="2"/><path d="M63 135V74h39l14 14h39v61h-92Z" fill="none" stroke-width="3"/><path d="m87 114 15 15 31-35" fill="none" stroke-width="4"/>'],
  ['media','#65a09c','#123d40','<path d="M0 58h218M0 160h218" stroke-width="1"/><circle cx="109" cy="106" r="61" fill="none" stroke-width="2"/><path d="m95 77 43 29-43 29Z" fill="currentColor" stroke="none"/><path d="M25 181h168M25 188h92" stroke-width="2"/>'],
  ['answers','#c66e55','#f4e9d5','<rect x="42" y="24" width="135" height="166" rx="4" fill="none" stroke-width="2"/><path d="m62 63 7 7 14-17m-21 58 7 7 14-17m-21 57 7 7 14-17M98 65h58m-58 48h58m-58 46h38" fill="none" stroke-width="3"/>'],
+ ['discussion','#d0a299','#553b36','<path d="M45 40h128v105h-59l-38 29v-29H45Z" stroke-width="2"/><path d="M70 70h77M70 91h77M70 112h50" stroke-width="3" stroke-linecap="round"/>'],
+ ['exam','#a7b7a2','#274c41','<path d="M51 30h82l34 34v118H51Z M133 30v34h34" stroke-width="2"/><path d="M93 89h51m-51 30h51m-51 30h38" stroke-width="3" stroke-linecap="round"/><circle cx="75" cy="89" r="4"/><circle cx="75" cy="119" r="4"/><circle cx="75" cy="149" r="4"/>'],
  ['courses','#d9ba62','#395241','<path d="M24 40h170v43H63v44h131v43H24" fill="none" stroke-width="2"/><circle cx="24" cy="40" r="8" fill="currentColor" stroke="none"/><circle cx="194" cy="83" r="8" fill="currentColor" stroke="none"/><circle cx="63" cy="127" r="8" fill="currentColor" stroke="none"/><path d="m180 157 14 13-14 13" fill="none" stroke-width="3"/>'],
  ['ai','#a6b7cf','#2f4e79','<path d="M24 43h120v75H78l-27 23v-23H24ZM80 90h113v73h-23v26l-31-26H80Z" fill="none" stroke-width="2"/><path d="M43 64h75m-75 14h50m-50 14h65m37 43h29m-29 13h15" fill="none" stroke-width="3"/>'],
  ['help','#c0b4ce','#46395c','<circle cx="109" cy="107" r="72" fill="none" stroke-width="2"/><path d="M90 84c0-26 42-26 42 0 0 16-22 18-22 36m0 19v5" fill="none" stroke-width="5" stroke-linecap="round"/><path d="M109 17V0m0 210v-13M20 107H0m218 0h-20" fill="none" stroke-width="2"/>']
@@ -57,7 +59,11 @@ for(const[gIndex,guide]of guides.entries()){
  await writeFile(resolve(site,'guides',`${guide.id}.html`),html);
 }
 const text=html=>html.replace(/<[^>]+>/g,' ').replace(/&[a-z#0-9]+;/gi,' ').replace(/\s+/g,' ').trim();
-await writeFile(resolve(assets,'search-index.json'),JSON.stringify(guides.map(g=>({id:g.id,title:g.title,summary:g.summary,keywords:g.keywords,text:g.sections.map(s=>s.title+' '+text(s.html)).join(' ')}))));
+const sectionEntries=guides.flatMap(guide=>guide.sections.filter(section=>section.searchSummary).map(section=>({
+ id:guide.id,anchor:section.id,title:section.title,summary:section.searchSummary,keywords:[],text:text(section.html)
+})));
+const guideEntries=guides.map(g=>({id:g.id,title:g.title,summary:g.summary,keywords:g.keywords,text:g.sections.map(s=>s.title+' '+text(s.html)).join(' ')}));
+await writeFile(resolve(assets,'search-index.json'),JSON.stringify([...sectionEntries,...guideEntries]));
 await writeFile(resolve(site,'sitemap.xml'),`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://irisbud.github.io/xuexitong-ai-assistant/</loc></url>${guides.map(g=>`<url><loc>https://irisbud.github.io/xuexitong-ai-assistant/guides/${g.id}.html</loc></url>`).join('')}</urlset>\n`);
 await writeFile(resolve(site,'robots.txt'),'User-agent: *\nAllow: /\nSitemap: https://irisbud.github.io/xuexitong-ai-assistant/sitemap.xml\n');
 console.log(`Built GitHub Pages guide: ${guides.length} articles, local search and ${images.length} original screenshots; formal version ${version}.`);
