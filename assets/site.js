@@ -40,7 +40,7 @@
         const data=entries||await load();if(own!==serial)return;
         const terms=query.split(/\s+/).filter(Boolean),matches=data.filter(entry=>terms.every(term=>normalize(entry.title+' '+entry.summary+' '+entry.keywords.join(' ')+' '+entry.text).includes(normalize(term))));
         index.hidden=matches.length>0;results.hidden=false;status.textContent=matches.length?`找到 ${matches.length} 篇相关教程`:'没有找到匹配的教程，下面的目录仍可直接打开。';
-        for(const entry of matches){const link=document.createElement('a');link.className='search-result';link.href=`guides/${entry.id}.html`;const title=document.createElement('strong');title.textContent=entry.title;const summary=document.createElement('p');summary.textContent=entry.summary;link.append(title,summary);results.append(link);}
+        for(const entry of matches){const link=document.createElement('a');link.className='search-result';const section=entry.anchor?'#'+encodeURIComponent(entry.anchor):'';link.href=`guides/${entry.id}.html${section}`;const title=document.createElement('strong');title.textContent=entry.title;const summary=document.createElement('p');summary.textContent=entry.summary;link.append(title,summary);results.append(link);}
       }catch{if(own!==serial)return;results.hidden=true;index.hidden=false;status.textContent='搜索暂时加载失败。可以直接打开下面的教程，或刷新后重试。';pending=null;}
     };
     input.addEventListener('input',search);
