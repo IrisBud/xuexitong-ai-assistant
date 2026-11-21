@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通自动化脚本（支持接入各种主流AI模型api）
 // @namespace    xuexitong-ai-assistant.public
-// @version      1.8.1
+// @version      1.8.2
 // @description  视频、文献与学习练习辅助；自配 AI API；不含任何密钥
 // @supportURL   https://github.com/IrisBud/xuexitong-ai-assistant/issues
 // @updateURL    https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js
@@ -22,7 +22,7 @@
 // ==/UserScript==
 
 (() => { const module = undefined, exports = undefined, define = undefined;
-globalThis.XxtRelease = {"version":"1.8.1","date":"2026-11-21","channel":"candidate","changes":["在逐题答题页点击「开始考试辅助」，可进入学习通整卷预览并继续处理同一份试卷。","修复整卷预览部分选项缺少可访问性状态时无法确认作答的问题。","考试面板增加适用范围说明，并标明每题的 AI 自评确定度。"]};
+globalThis.XxtRelease = {"version":"1.8.2","date":"2026-11-21","channel":"stable","changes":["作业支持已识别的多空富文本填空题，按页面空号逐空填写，并保留已有作答。","自动学习时可跳过正在处理的音视频或资料，继续本章其余任务，跳过项记录待复核。","在逐题答题页点击「开始考试辅助」，可进入学习通整卷预览并继续处理同一份试卷。","修复整卷预览部分选项缺少可访问性状态时无法确认作答的问题。","考试面板增加适用范围说明，并标明每题的 AI 自评确定度。"]};
 /* Exact origins approved in the script manager's private storage, never by page messages. */
 (function (root) {
     'use strict';
@@ -5756,7 +5756,7 @@ return {Typr,md5:this.md5};
 /* Official model catalog. Refresh sources and capabilities before every release. */
 (function (root) {
     'use strict';
-    const verifiedAt = '2026-11-21', release = '1.8.1';
+    const verifiedAt = '2026-11-21', release = '1.8.2';
     const rows = (ids, profile = '', vision = null) => ids.map(id => ({ id, profile, vision }));
     const providers = {
         openai: { sources: ['https://developers.openai.com/api/docs/models','https://developers.openai.com/api/docs/changelog','https://developers.openai.com/api/docs/deprecations','https://developers.openai.com/api/docs/guides/latest-model','https://developers.openai.com/api/docs/guides/reasoning','https://developers.openai.com/api/docs/models/gpt-6.2-astra','https://developers.openai.com/api/docs/models/gpt-6.2-sol','https://developers.openai.com/api/docs/models/gpt-6-sol','https://developers.openai.com/api/docs/models/gpt-6.1-terra'], models: rows(['gpt-6.2-astra','gpt-6.2-sol','gpt-6-astra','gpt-6.1-sol'], 'openai', true).concat(rows(['gpt-6.1-terra','gpt-6-sol','gpt-6-luna'], 'openai-none', true)) },
@@ -8567,12 +8567,35 @@ startxref
  'use strict';
  const plain=node=>(node?.textContent||'').replace(/\s+/g,' ').trim();
  const hash=value=>{let n=2166136261;for(const c of value)n=Math.imul(n^c.charCodeAt(0),16777619);return(n>>>0).toString(16);};
+ function richBlanks(node){
+  const slots=[];
+  for(const row of node.querySelectorAll(':scope > .stem_answer .blankItemDiv')){
+   if(row.closest('.questionLi')!==node)continue;
+   const labels=row.querySelectorAll(':scope > .tiankong');
+   const inputs=row.querySelectorAll(':scope > .blankItemInp');
+   const number=labels.length===1?Number(plain(labels[0]).match(/^第\s*(\d+)\s*空[：:]?$/)?.[1]):0;
+   const body=inputs.length===1?inputs[0]:null;
+   if(!number||!body)return null;
+   const wrappers=body.querySelectorAll(':scope > .textDIV'),activators=body.querySelectorAll(':scope > .InpDIV');
+   if(wrappers.length!==1||activators.length!==1)return null;
+   const wrapper=wrappers[0],activator=activators[0];
+   const fields=wrapper.querySelectorAll('textarea'),frames=wrapper.querySelectorAll('iframe[id^="ueditor_"]');
+   if(fields.length!==1||frames.length!==1)return null;
+   const field=fields[0],frame=frames[0],suffix=field.id.match(/^answerEditor(\d+)$/)?.[1];
+   if(!suffix||activator.id!=='inpDiv'+suffix)return null;
+   slots.push({number,label:labels[0],row,wrapper,activator,field,frame});
+  }
+  slots.sort((a,b)=>a.number-b.number);
+  return slots.length>0&&slots.length<=20&&slots.every((slot,index)=>slot.number===index+1) ? slots : null;
+ }
  function scan(doc){
   const form=doc.querySelector('.fanyaMarking #submitForm');if(!form)return[];
   return [...form.querySelectorAll('.questionLi.singleQuesId[id^="question"]')].filter(node=>!node.parentElement?.closest('.questionLi')).map(node=>{
    const title=node.querySelector(':scope > h3.mark_name'),kind=plain(title?.querySelector('.colorShallow'));
    const id=node.id,number=node.getAttribute('aria-label')?.match(/题目\s*(\d+)/)?.[1]||plain(title).match(/^(\d+)\./)?.[1]||id;
    const rows=[...node.querySelectorAll(':scope > .stem_answer.qtDetail > .answerBg[role="radio"],:scope > .stem_answer.qtDetail > .answerBg[role="checkbox"]')];
+   const richSlots=/填空题/.test(kind)?richBlanks(node):null;
+   const richLayout=node.querySelector(':scope > .stem_answer .blankItemDiv .textDIV');
    const editor=node.querySelector(':scope > .stem_answer > .eidtDiv');
    const fields=editor?[...editor.querySelectorAll('textarea')].filter(f=>f.id==='answer'+id.slice('question'.length)):[...node.querySelectorAll(':scope > .stem_answer input[type="text"],:scope > .stem_answer textarea')].filter(n=>n.getClientRects().length&&!n.disabled&&!n.readOnly);
    const frames=editor?[...editor.querySelectorAll('iframe[id^="ueditor_"]')]:[];
@@ -8581,26 +8604,67 @@ startxref
    if(/判断题/.test(kind)&&rows.length===2&&options.every(o=>o.key&&o.text)&&new Set(options.map(o=>o.key)).size===2)type='boolean';
    if(/单选题|多选题/.test(kind)&&rows.length>=2&&options.every(o=>/^[A-T]$/.test(o.key)&&o.text)&&new Set(options.map(o=>o.key)).size===rows.length)type=/多选题/.test(kind)?'multiple':'single';
    if(/计算题|简答题|论述题/.test(kind)&&fields.length===1&&frames.length===1)type='essay';
-   if(/填空题/.test(kind)&&fields.length>=1&&fields.length<=20&&!frames.length)type='blank';
+   if(/填空题/.test(kind)&&!rows.length&&(richSlots||!richLayout&&fields.length>=1&&fields.length<=20&&!frames.length))type='blank';
    const images=[...(title?.querySelectorAll('img')||[])];
    const visualSources=images.map(img=>img.getAttribute('src')||img.getAttribute('data-original')||img.getAttribute('data-collector-image')||'image');
-   return{element:node,title,rows,fields,frames,question:{id,number,type,text:plain(title),options,
-    ...(['essay','blank'].includes(type)?{slots:fields.length}:{}),...(images.length?{requiresVision:true,imageKey:hash(JSON.stringify(visualSources))}:{})}};
+   return{element:node,title,rows,fields,frames,richSlots,question:{id,number,type,text:plain(title),options,
+    ...(['essay','blank'].includes(type)?{slots:richSlots?.length??fields.length}:{}),...(images.length?{requiresVision:true,imageKey:hash(JSON.stringify(visualSources))}:{})}};
   });
  }
  function buttons(doc){const host=doc.querySelector('.subNav #submitFocus');if(!host)return{save:null,submit:null};const candidates=[...host.querySelectorAll(':scope > a')];const one=list=>list.length===1?list[0]:null;return{save:one(candidates.filter(n=>!n.classList.contains('completeBtn')&&plain(n)==='暂时保存')),submit:one(candidates.filter(n=>n.classList.contains('completeBtn')&&n.getAttribute('role')==='button'&&plain(n)==='提交'))};}
  const comparable=value=>globalThis.XxtHomework.comparable(value);
  function htmlText(value,doc){const t=doc.createElement('template');t.innerHTML=String(value||'');for(const n of t.content.querySelectorAll('br'))n.replaceWith('\n');return comparable(t.content.textContent);}
  const visible=n=>!!n?.isConnected&&!!n.getClientRects().length&&n.ownerDocument.defaultView.getComputedStyle(n).visibility!=='hidden';
- function editorFor(entry){
-  const field=entry.fields[0],frame=entry.frames[0],doc=entry.element.ownerDocument;
+ function editorFor(entry,slot){
+  const field=slot?.field||entry.fields[0],frame=slot?.frame||entry.frames[0],doc=entry.element.ownerDocument;
   const win=typeof unsafeWindow!=='undefined'&&unsafeWindow.document===doc?unsafeWindow:doc.defaultView;
   const matches=Object.values(win.UE?.instants||{}).filter(e=>e&&e.key===field?.id&&e.textarea===field&&e.iframe===frame);
   const e=matches.length===1?matches[0]:null;
-  if(!e||!['setContent','getContent','sync'].every(k=>typeof e[k]==='function')||!e.body?.isConnected||e.body!==frame.contentDocument?.body||!e.body.isContentEditable||e.options?.readonly||field.disabled||field.readOnly||!visible(frame))throw Error('主观题编辑器尚未可用或对应关系变化，未写入答案。');
+  if(!e||!['setContent','getContent','sync'].every(k=>typeof e[k]==='function')||!e.body?.isConnected||e.body!==frame.contentDocument?.body||!e.body.isContentEditable||e.options?.readonly||field.disabled||field.readOnly||(!slot&&!visible(frame)))throw Error('富文本编辑器尚未可用或对应关系变化，未写入答案。');
   // The observed runtime reports isReady !== true for five live, editable
   // bodies. Readiness is established by the actual bound body and methods.
   return e;
+ }
+ function slotEditor(entry,slot){
+  const {number,field,frame,wrapper,activator}=slot,doc=entry.element.ownerDocument;
+  const current=richBlanks(entry.element)?.[number-1];
+  if(!current||Object.keys(slot).some(key=>current[key]!==slot[key])||
+     [field,frame,activator].some(node=>!node.id||doc.querySelectorAll('#'+CSS.escape(node.id)).length!==1)||
+     !field.form||field.form!==entry.element.closest('form')||
+     activator.matches(':disabled,[aria-disabled=true]')||
+     frame.closest('[hidden],[aria-hidden=true],[inert]')||
+     (!visible(frame)&&!(visible(activator)&&visible(wrapper.parentElement)&&doc.defaultView.getComputedStyle(wrapper).display==='none')))
+   throw Error('第 '+number+' 空的编辑器或原生展开入口无法确认。');
+  return editorFor(entry,slot);
+ }
+ function slotText(entry,slot,editor=slotEditor(entry,slot)){
+  const doc=entry.element.ownerDocument,values=[editor.getContent(),editor.body.innerHTML,slot.field.value].map(value=>htmlText(value,doc));
+  if(values.some(value=>value!==values[0]))throw Error('第 '+slot.number+' 空的页面显示与保存字段不一致，请人工核对。');
+  return values[0];
+ }
+ function writeEditor(editor,value){
+  const html='<p>'+value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\r?\n/g,'<br>')+'</p>';
+  editor.setContent(html);editor.fireEvent?.('contentChange');editor.sync();
+ }
+ async function applyRichBlanks(entry,answer,guard){
+  const prior=entry.richSlots.map(slot=>slotText(entry,slot));
+  for(const [index,slot] of entry.richSlots.entries()){
+   guard();
+   const value=answer.texts[index];
+   if(prior[index]===comparable(value))continue;
+   const unchanged=()=>entry.richSlots.every((item,i)=>slotText(entry,item)===prior[i]);
+   if(!unchanged())throw Error('填空作答已变化，保留现有内容。');
+   if(!visible(slot.frame)){
+    slot.activator.click();
+    for(let i=0;i<12&&!visible(slot.frame);i++){await new Promise(resolve=>setTimeout(resolve,80));guard();}
+   }
+   guard();
+   if(!visible(slot.frame)||!unchanged())throw Error('第 '+slot.number+' 空未就绪或已有人工修改。');
+   const editor=slotEditor(entry,slot);
+   writeEditor(editor,value);guard();
+   if(slotText(entry,slot)!==comparable(value))throw Error('第 '+slot.number+' 空未通过回读，未保存或提交。');
+   prior[index]=comparable(value);
+  }
  }
  function choices(entry){
   const marked=entry.rows.flatMap((row,i)=>{
@@ -8617,7 +8681,8 @@ startxref
  }
  function readEntry(entry){
   if(entry.question.type==='essay')return{id:entry.question.id,texts:[htmlText(editorFor(entry).body.innerHTML,entry.element.ownerDocument)]};
-  if(entry.question.type==='blank')return{id:entry.question.id,texts:entry.fields.map(f=>comparable(f.value))};
+  if(entry.question.type==='blank')return{id:entry.question.id,texts:entry.richSlots
+   ?entry.richSlots.map(slot=>slotText(entry,slot)):entry.fields.map(f=>comparable(f.value))};
   if(entry.rows.length)return{id:entry.question.id,choices:choices(entry)};
   return{id:entry.question.id};
  }
@@ -8638,9 +8703,11 @@ startxref
    for(const entry of entries){
     guard();const answer=answers.find(a=>a.id===entry.question.id);ensure(entry,answer);
     if(entry.question.type==='essay'){
-     const e=editorFor(entry),value=answer.texts[0],html='<p>'+value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\r?\n/g,'<br>')+'</p>';
-     e.setContent(html);e.fireEvent?.('contentChange');e.sync();guard();
+     const e=editorFor(entry),value=answer.texts[0];
+     writeEditor(e,value);guard();
      if([e.getContent(),entry.fields[0].value,e.body.innerHTML].some(v=>htmlText(v,doc)!==comparable(value)))throw Error('主观题显示或提交字段未同步，未执行收尾操作。');
+    }else if(entry.richSlots){
+     await applyRichBlanks(entry,answer,guard);
     }else if(entry.question.type==='blank'){
      for(let i=0;i<entry.fields.length;i++){guard();const f=entry.fields[i];if(!visible(f)||f.disabled||f.readOnly)throw Error('填空框不可编辑。');const proto=f.tagName==='TEXTAREA'?doc.defaultView.HTMLTextAreaElement.prototype:doc.defaultView.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(f,answer.texts[i]);for(const type of ['input','change'])f.dispatchEvent(new doc.defaultView.Event(type,{bubbles:true}));}
     }else{
@@ -8777,7 +8844,8 @@ startxref
     const styles=el('style');styles.textContent=`
     [data-xxt-hub-hidden="true"]{display:none!important}
     [data-xxt-hub] button{font:inherit;cursor:pointer;border:1px solid var(--line,#b9c7d9);border-radius:10px;padding:5px 9px;margin:4px 5px 4px 0;background:var(--surface,#f7faff);color:inherit}
-    [data-xxt-hub] button:active{background:var(--button,#e3edff)}
+    [data-xxt-hub] button:disabled{opacity:.4;cursor:not-allowed}
+    [data-xxt-hub] button:active:not(:disabled){background:var(--button,#e3edff)}
     [data-xxt-hub] button:focus-visible{outline:2px solid var(--accent,#2459d9);outline-offset:2px}
     [data-xxt-hub] label,[data-hub-settings] label{display:block;margin:6px 0}
     [data-xxt-hub] small,[data-hub-settings] small{display:block;color:var(--muted,#52617a)}
@@ -8972,8 +9040,9 @@ startxref
         document.body.append(host);activate(0);syncPersonalTheme();renderSelection();renderQueue();
     }
     function homeEntry(){return[...document.querySelectorAll('.stuNavigationList a[href],#boxscrollleft a[href]')].find(a=>{try{const u=new URL(a.href),p=u.searchParams;return u.origin===location.origin&&/^\/mycourse\/studentstudy(?:Ajax)?$/.test(u.pathname)&&(p.get('courseId')||p.get('courseid')||'')+'/'+(p.get('clazzid')||p.get('clazzId')||'')===identity()&&visible(a);}catch{return false;}});}
-    function mountStudy(panel){if(host)return;host=el('section');host.dataset.xxtHub='true';const details=el('details',undefined,host);el('summary','待刷列表与章节目录',details);const actions=el('div',undefined,details);button('开始 / 继续',actions,()=>{if(restUntil>Date.now())throw Error('仍在休息中，请稍后继续。');if(!control?.canStart())throw Error('请先结束夜间休息、人工验证或预览。');pacingStart=Date.now();return control.start();});button('暂停',actions,()=>{control?.stop();hold('手动暂停');status('已暂停，点击开始可继续。');});button('跳过当前章节',actions,async()=>{if(!control)throw Error('当前页面没有可用章节控制。');await control.skip();});const search=el('input',undefined,details);search.type='search';search.placeholder='搜索章节';search.setAttribute('aria-label','搜索章节');search.dataset.hubSearch='true';const only=el('label',undefined,details),check=el('input',undefined,only);check.type='checkbox';check.dataset.hubPending='true';only.append(document.createTextNode(' 只看未完成 / 待核对'));const list=el('ol',undefined,details);list.dataset.hubCatalog='true';search.oninput=()=>{catalogSignature='';renderCatalog();};check.onchange=()=>{catalogSignature='';renderCatalog();};statusNode=el('p','目录标记来自平台；跳过不等于完成。',details);statusNode.setAttribute('role','status');addQueue(host);options(host);if(globalThis.XxtPanelLayout)globalThis.XxtPanelLayout.placeHub(panel,host);else (panel.querySelector('.xxt-body')||panel).append(host);renderCatalog();renderQueue();}
+    function mountStudy(panel){if(host)return;host=el('section');host.dataset.xxtHub='true';const details=el('details',undefined,host);el('summary','待刷列表与章节目录',details);const actions=el('div',undefined,details);button('开始 / 继续',actions,()=>{if(restUntil>Date.now())throw Error('仍在休息中，请稍后继续。');if(!control?.canStart())throw Error('请先结束夜间休息、人工验证或预览。');pacingStart=Date.now();return control.start();});button('暂停',actions,()=>{control?.stop();hold('手动暂停');status('已暂停，点击开始可继续。');});const skip=button('跳过当前任务',actions,()=>{control.skipTask();refreshTaskSkip();});skip.dataset.hubSkipTask='true';skip.disabled=true;skip.title='跳过正在处理的音视频或资料，保留待复核。';button('跳过当前章节',actions,async()=>{if(!control)throw Error('当前页面没有可用章节控制。');await control.skip();});const search=el('input',undefined,details);search.type='search';search.placeholder='搜索章节';search.setAttribute('aria-label','搜索章节');search.dataset.hubSearch='true';const only=el('label',undefined,details),check=el('input',undefined,only);check.type='checkbox';check.dataset.hubPending='true';only.append(document.createTextNode(' 只看未完成 / 待核对'));const list=el('ol',undefined,details);list.dataset.hubCatalog='true';search.oninput=()=>{catalogSignature='';renderCatalog();};check.onchange=()=>{catalogSignature='';renderCatalog();};statusNode=el('p','目录标记来自平台；跳过不等于完成。',details);statusNode.setAttribute('role','status');addQueue(host);options(host);if(globalThis.XxtPanelLayout)globalThis.XxtPanelLayout.placeHub(panel,host);else (panel.querySelector('.xxt-body')||panel).append(host);renderCatalog();renderQueue();}
     function catalog(){return control?.catalog?.()||[];}
+    function refreshTaskSkip(){const skip=host?.querySelector('[data-hub-skip-task]');if(skip)skip.disabled=!control?.canSkipTask?.();}
     function renderCatalog(){const list=host?.querySelector('[data-hub-catalog]');if(!list)return;const entries=catalog(),query=host.querySelector('[data-hub-search]').value.trim(),pending=host.querySelector('[data-hub-pending]').checked;const signature=JSON.stringify([query,pending,entries.map(e=>[e.title,e.completion,e.node.classList.contains('posCatalog_active')])]);if(signature===catalogSignature)return;catalogSignature=signature;list.replaceChildren();for(const entry of entries){const title=typeof entry.title==='string'?entry.title.trim():'';if(!title||query&&!title.includes(query)||pending&&entry.completion==='completed')continue;const li=el('li',undefined,list),current=entry.node.classList.contains('posCatalog_active');const b=button((current?'当前 · ':'')+title,li,async()=>{if(!entry.node.isConnected)throw Error('目录已变化，请重新选择。');control?.stop();hold('手动切换章节');const target=entry.node.querySelector('.posCatalog_name');if(!target||!visible(target))throw Error('章节入口当前不可用。');target.click();status('已打开章节，请核对后点击开始。');});b.title=title;el('small',entry.completion==='completed'?'平台目录已完成':entry.completion==='pending'?'平台目录未完成':'状态待核对',li);}}
     let defaultsDone=false,manualMenu=false;
     function defaults(){if(!personal||defaultsDone||!read('default-course',false)||manualMenu)return;const frame=document.querySelector('#frame_content');if(!frame)return;try{if(new URL(frame.src).pathname==='/visit/interaction'){defaultsDone=true;return;}}catch{}const entries=menus().filter(x=>/^(课程|courses?)$/i.test(x.label)&&visible(x.node));if(entries.length===1){defaultsDone=true;entries[0].node.click();}}
@@ -8986,7 +9055,7 @@ startxref
 
     function gate(){const now=Date.now();if(restUntil){if(now<restUntil){status('学习休息中，剩余 '+Math.ceil((restUntil-now)/1000)+' 秒；结束后手动继续。');return true;}restUntil=0;status('休息已结束，请手动点击开始 / 继续。');return true;}if(read('pacing',false)&&pacingStart&&now-pacingStart>=read('study-minutes',45)*60000){control?.stop();hold('定时休息结束后需手动继续');restUntil=now+read('rest-minutes',10)*60000;status('本轮学习已暂停休息，结束后请手动继续。');return true;}if(gapUntil>now){status('视频间隔：剩余 '+Math.ceil((gapUntil-now)/1000)+' 秒');return true;}return false;}
     function mediaGate(media){if(lastMedia?.ended)mediaGapArmed=true;if(media&&media!==lastMedia){const seconds=Math.min(600,Math.max(0,Number(read('video-gap',0))||0));if(lastMedia&&mediaGapArmed&&seconds){gapUntil=Date.now()+seconds*1000;mediaGapArmed=false;}lastMedia=media;}if(media?.ended)mediaGapArmed=true;return gate();}
-    async function pump(){if(closed||busy||navigating)return;busy=true;try{applyOptions();publish();mountPersonal();syncPersonalTheme();renderSelection();renderMenus();defaults();renderCatalog();renderQueue();if(topPage&&queue?.state==='running'){if(!valid()){hold(queueProblem());control?.stop();}else if(control&&!matches()){hold('当前课程不属于队列当前位置，请手动继续');control.stop();}else if(control&&!booted){if(document.hidden||!control.canStart()){hold('请核对当前课程后手动继续队列');}else{booted=true;pacingStart=Date.now();await control.start();}}else if(!control&&!personal&&!homeOpened&&homeEntry()){if(!matches()||document.hidden){hold('请核对课程后手动进入学习页');}else{homeOpened=true;location.assign(homeEntry().href);}}}}finally{busy=false;}}
+    async function pump(){if(closed||busy||navigating)return;busy=true;try{applyOptions();publish();mountPersonal();syncPersonalTheme();renderSelection();renderMenus();defaults();renderCatalog();renderQueue();refreshTaskSkip();if(topPage&&queue?.state==='running'){if(!valid()){hold(queueProblem());control?.stop();}else if(control&&!matches()){hold('当前课程不属于队列当前位置，请手动继续');control.stop();}else if(control&&!booted){if(document.hidden||!control.canStart()){hold('请核对当前课程后手动继续队列');}else{booted=true;pacingStart=Date.now();await control.start();}}else if(!control&&!personal&&!homeOpened&&homeEntry()){if(!matches()||document.hidden){hold('请核对课程后手动进入学习页');}else{homeOpened=true;location.assign(homeEntry().href);}}}}finally{busy=false;}}
     document.addEventListener('xxt-theme-changed',syncPersonalTheme);
     globalThis.XxtCourseHub={attach(panel,hooks){if(!topPage)return;control=hooks;mountStudy(panel);void pump();},hold,cancel,validContext(){return queue?.state!=='running'||matches();},courseComplete,gate,mediaGate,mediaEnded(){mediaGapArmed=true;},started(){pacingStart=Date.now();restUntil=0;},inspect(){return{state:queue?.state||'none',matches:matches(),restUntil,gapUntil};}};
     if(topPage&&typeof GM_getTab==='function'&&typeof GM_saveTab==='function')GM_getTab(value=>{if(closed)return;tabReady=true;tab=value||{};queue=tab.xxtCourseQueue||null;void pump();});
@@ -9992,6 +10061,7 @@ startxref
     const skippedDiscussions = new Set();
     let pageReviewNeeded = false, pageSignature = '', pageChangedAt = 0, pageBlockedAt = 0;
     let pageVideo = null, pagePlaying = false, stepTransition = null, currentCard = '', stepDone = new Set();
+    let activeKnowledgeTask = null;
     let startedVideos = new WeakSet();
     const recoveryAttempts = new Set();
     const skippedChapters = new Set();
@@ -10202,6 +10272,7 @@ startxref
         discussionOwner?.cancel(); skippedDiscussions.clear();
         pageReviewNeeded = false; pageSignature = ''; pageChangedAt = Date.now(); pageBlockedAt = 0;
         stepTransition = null; currentCard = ''; stepDone = new Set(); pageVideo = null;
+        activeKnowledgeTask = null;
         completedFileAssets.clear(); skippedAssets.clear(); skippedMarkers.clear(); skippedQuizWindows.clear();awaitingReviewAssets.clear();awaitingReviewMarkers.clear();
         videoSettlements.clear();advancedMedia.clear();
         if (coursePage() && task) {
@@ -10267,6 +10338,7 @@ startxref
     function releaseVerification(){backgroundManual=false;verificationStopped=false;sessionStorage.removeItem(verificationKey);themeStatus?.setVerification('');}
     function pause(reason, allowRecovery = true) {
         if(verificationPresent()){holdVerification();return;}
+        activeKnowledgeTask = null;
         forceRate.releaseAll();
         cancelPrefetch();
         if (allowRecovery) diagnostics.record(reason,{phase:'recovery'});
@@ -10284,7 +10356,7 @@ startxref
         if (!isTop && !coursePage()) report('pause', { reason, task });
         if (recover) void recoverAutomatic(recoveryReason);
     }
-    function rememberSkipped(reason, discussion = null, quiz = null) {
+    function rememberSkipped(reason, discussion = null, quiz = null, knowledge = false) {
         skippedChapters.add(courseTask());
         const chapter = D.text(document.querySelector('#coursetree .posCatalog_active .posCatalog_name')) || '当前章节';
         const key = `xxt-skipped:${autoKey}`;
@@ -10303,6 +10375,10 @@ startxref
             entry.quizSkips=[...(old?.quizSkips||[]),...(item&&!old?.quizSkips?.some(prior=>prior.reason===item.reason)?[item]:[])].slice(-20);
             const prior=quiz?(entry.discussionSkips||[]).map(item=>`讨论“${item.title}”：${item.reason}`).join('；'):entry.reason;
             entry.reason=[prior,...entry.quizSkips.map(item=>item.reason)].filter(Boolean).join('；');
+        }
+        if (knowledge || old?.taskSkips?.length) {
+            entry.taskSkips = [...new Set([...(old?.taskSkips || []), ...(knowledge ? [reason] : [])])].slice(-20);
+            entry.reason = [...new Set([entry.reason, ...entry.taskSkips])].join('；');
         }
         GM_setValue(key, XxtRunLedger.record(list,entry));
         notify(`已记录待复核：${chapter}，${reason}。继续处理其余内容…`);
@@ -10533,6 +10609,45 @@ startxref
             (R?.find(pageWindow) || []).some(entry => !topicDone.has(entry.element)) ||
             view.markers.some(marker => marker.kind !== 'check' && !marker.done && !skippedMarkers.has(marker.element));
     }
+    function skippableKnowledge(){
+        const current=activeKnowledgeTask;
+        if(!current||!automatic||stopped||unloaded||recovering||task!==courseTask()||stepTransition||
+           previewClient||previewWorker||quietNow()||verificationBlocked()||hasVideoQuiz()||
+           (current.kind==='document'&&parentReadingFiles&&!openedDocument))return null;
+        return current;
+    }
+    function skipKnowledgeTask(){
+        const current=skippableKnowledge();
+        if(!current)throw Error('当前没有可跳过的音视频或资料任务。');
+        const {kind,asset}=current,view=pageInventory();
+        const list=kind==='document'?view?.documents:view?.videos;
+        const live=list?.find(item=>item.id===asset.id&&item.root===asset.root&&item.video===asset.video&&
+            item.entry?.element===asset.entry?.element&&item.container===asset.container);
+        if(!live||(kind==='document'?fileDone(live):videoDone(live)))throw Error('当前任务已结束或变化，请重新核对。');
+        beforeClick();
+        activeKnowledgeTask=null;
+        skippedAssets.add(live.id);
+        if(live.container)skippedMarkers.add(live.container);
+        epoch++;
+        if(kind==='document') {
+            closeDocument();
+            expectedDocumentTask='';documentOwner=null;
+        } else {
+            if(live.video){forceRate.releaseAll();live.video.pause();}
+            pageVideo=null;
+            expectedVideoTask='';videoFinishProbe=null;
+        }
+        for(const [source,entry] of frames){
+            if(entry.kind!==kind||!covers(live,source,kind))continue;
+            post(source,'stop',{target:entry.nonce});
+            entry.running=false;
+        }
+        const title=live.entry?.label||live.container?.getAttribute('title')||'本页第 '+(list.indexOf(live)+1)+' 项';
+        const label=kind==='document'?'资料':live.mediaKind==='audio'?'音频':'视频';
+        rememberSkipped('手动跳过'+label+'：'+title.slice(0,120),null,null,true);
+        pageBlockedAt=0;unknownSince=0;unknownTask='';
+        completedTasks.delete(task);
+    }
     function videoCandidate() {
         if (!coursePage() || !P || stepTransition) return null;
         return pageInventory().videos.find(asset => !videoDone(asset))?.video || null;
@@ -10553,6 +10668,7 @@ startxref
             record = {}; save();
         }
         currentCard = id; expectedCheckTask = ''; expectedVideoTask = ''; expectedDocumentTask = '';
+        activeKnowledgeTask = null;
         videoSettlements.clear();advancedMedia.clear();
         skippedAssets.clear(); skippedMarkers.clear(); skippedQuizWindows.clear();awaitingReviewAssets.clear();awaitingReviewMarkers.clear();
         completedFileAssets.clear();
@@ -10583,7 +10699,8 @@ startxref
         try { previousDocument = document.querySelector('#iframe')?.contentDocument; } catch {}
         stepTransition = { id: next.id, previousDocument };
         stopPlayer();
-        next.element.click(); notify(`当前页任务已完成，进入本章步骤：${next.label}`);
+        const status = skippedAssets.size || skippedMarkers.size ? '当前页处理结束，跳过项待复核' : '当前页任务已完成';
+        next.element.click(); notify(`${status}，进入本章步骤：${next.label}`);
         return true;
     }
     function settleEndedVideos(view) {
@@ -10647,6 +10764,7 @@ startxref
         return false;
     }
     async function coordinatePage() {
+        activeKnowledgeTask=null;
         if(verificationBlocked()){holdVerification();return true;}
         const view = pageInventory();
         if (!view) return false;
@@ -10667,6 +10785,7 @@ startxref
         const pending = view.videos.find(asset => !videoDone(asset));
         if (pending) {
             if(isTop&&globalThis.XxtCourseHub?.mediaGate(pending.video||pending.id))return true;
+            activeKnowledgeTask={kind:'video',asset:pending};
             pageReviewNeeded = true;
             expectedVideoTask = task; expectedDocumentTask = ''; expectedCheckTask = '';
             if (pending.video) {
@@ -10687,12 +10806,14 @@ startxref
                 pageVideo = video;
                 if (!pagePlaying && video.paused) {
                     pagePlaying = true;
+                    const playEpoch=epoch;
                     try {
                         if (window.app) { window.app.configs.autoplay = true; await window.app.play(); }
                         else { applyMediaRate(video); await video.play(); }
-                        if (stopped || quietNow()) video.pause();
-                    } catch (error) { if (!selectedMuted) audioBlocked(); else notify(`等待${label}可播放：${error.message}`); }
+                        if (stopped || quietNow() || playEpoch!==epoch) video.pause();
+                    } catch (error) { if(playEpoch===epoch){if (!selectedMuted) audioBlocked(); else notify(`等待${label}可播放：${error.message}`);} }
                     finally { pagePlaying = false; }
+                    if(playEpoch!==epoch)return true;
                 }
                 notify(`正在播放本页${label} ${view.videos.indexOf(pending) + 1}/${view.videos.length}，全部完成后再处理其他任务…`);
             } else {
@@ -10707,6 +10828,7 @@ startxref
         if (pageVideo) { pageVideo = null; pageReviewNeeded = true; stopPlayer(); }
         const file = view.documents.find(asset => !fileDone(asset));
         if (file) {
+            activeKnowledgeTask={kind:'document',asset:file};
             pageReviewNeeded = true; expectedVideoTask = ''; expectedDocumentTask = task;
             file.entry?.element.scrollIntoView({ block: 'center', behavior: 'auto' });
             const agent = [...frames].find(([source, entry]) => entry.kind === 'document' && !completedDocumentSenders.has(entry.nonce) && covers(file, source, 'document'));
@@ -11498,7 +11620,7 @@ startxref
             if (!stopped && automatic && !quietNow() && currentEpoch === epoch) {
                 closeDocument(); documentReportedTask = task;
                 if (coursePage()) throw new Error(`文献任务尚未完成：${error.message}`);
-                else { report('document-unrecognized', { task, reason: error.message }); automatic = false; }
+                else { report('document-unrecognized', { task, reason: error.message, documentIds:entries.map(entry=>entry.id) }); automatic = false; }
             } else throw error;
         } finally { closeDocument(); busy = false; }
         // Navigation/check readiness is separate from reading success. Never
@@ -11774,6 +11896,7 @@ startxref
             window.app?._reenterVideoMode?.(); return;
         }
         if (coursePage() && syncCard()) return;
+        const tickEpoch=epoch;
         try {
             const videoQuiz = Q.across(pageWindow).find(hit => !quizFrames.has(hit.win) && !skippedQuizWindows.has(hit.win));
             if (videoQuiz && (coursePage() || isTop || quizAuthorized)) { await solveVideoQuiz(videoQuiz); return; }
@@ -11811,7 +11934,7 @@ startxref
                 return;
             }
             await skipUnknownStep();
-        } catch (error) { pause(error.message); }
+        } catch (error) { if(!unloaded&&tickEpoch===epoch)pause(error.message); }
         finally { if (!inFlight) busy = false; }
     }
     function grant(source, entry, resume = false, resetVideoLines = false) {
@@ -12145,6 +12268,7 @@ startxref
         if(isTop&&coursePage())globalThis.XxtCourseHub?.attach(panel,{
             catalog:catalogSnapshot,canStart:()=>!quietNow()&&!verificationBlocked()&&!previewClient&&!previewWorker&&!unloaded,
             start:()=>start({manual:true}),stop:()=>stop(false),
+            canSkipTask:()=>Boolean(skippableKnowledge()),skipTask:skipKnowledgeTask,
             skip:async()=>{if(quietNow()||verificationBlocked()||previewClient||previewWorker)throw Error('请先结束休息、验证或预览');
                 stop(false);automatic=true;stopped=false;setTask(courseTask());completedTasks.delete(courseTask());
                 sessionStorage.setItem(autoKey,'1');rememberSkipped('用户主动跳过当前章节，待复核');await advanceCourse('用户主动跳过当前章节',true,true);}
@@ -12250,8 +12374,13 @@ startxref
             }
             if (['document-finished', 'document-unrecognized'].includes(data.type) && automatic && !stopped && data.task === courseTask() &&
                 frames.get(event.source)?.nonce === data.nonce && !completedDocumentSenders.has(data.nonce)) {
+                const ids=Array.isArray(data.documentIds)?data.documentIds:[];
+                const ownedFiles=pageInventory()?.documents.filter(asset=>covers(asset,event.source,'document'))||[];
+                const skippedFiles=ownedFiles.filter(asset=>skippedAssets.has(asset.id));
+                if(skippedFiles.length&&ownedFiles.every(asset=>skippedAssets.has(asset.id)))return;
+                if(skippedFiles.some(asset=>asset.entry&&ids.includes(asset.entry.id))&&
+                    !ownedFiles.some(asset=>!skippedAssets.has(asset.id)&&asset.entry&&ids.includes(asset.entry.id)))return;
                 if (data.type === 'document-finished') {
-                    const ids = Array.isArray(data.documentIds) ? data.documentIds : [];
                     for (const asset of pageInventory()?.documents || []) {
                         if (asset.root !== event.source && !descendant(asset.root, event.source) && !descendant(event.source, asset.root)) continue;
                         if (asset.entry && (ids.includes(asset.entry.id) ||
@@ -12283,6 +12412,7 @@ startxref
             }
             if (data.type === 'video-ended' && automatic && !stopped && data.task === courseTask() && frames.get(event.source)?.nonce === data.nonce &&
                 frames.get(event.source)?.mediaId === data.mediaId && !completedMedia.has(`${data.nonce}/${data.mediaId}`)) {
+                if(skippedAssets.size&&pageInventory()?.videos.some(asset=>skippedAssets.has(asset.id)&&covers(asset,event.source,'video')))return;
                 if(isTop)globalThis.XxtCourseHub?.mediaEnded();
                 completedMedia.add(`${data.nonce}/${data.mediaId}`);
                 expectedVideoTask = '';

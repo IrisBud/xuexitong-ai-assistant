@@ -48,6 +48,7 @@
     const skippedDiscussions = new Set();
     let pageReviewNeeded = false, pageSignature = '', pageChangedAt = 0, pageBlockedAt = 0;
     let pageVideo = null, pagePlaying = false, stepTransition = null, currentCard = '', stepDone = new Set();
+    let activeKnowledgeTask = null;
     let startedVideos = new WeakSet();
     const recoveryAttempts = new Set();
     const skippedChapters = new Set();
@@ -258,6 +259,7 @@
         discussionOwner?.cancel(); skippedDiscussions.clear();
         pageReviewNeeded = false; pageSignature = ''; pageChangedAt = Date.now(); pageBlockedAt = 0;
         stepTransition = null; currentCard = ''; stepDone = new Set(); pageVideo = null;
+        activeKnowledgeTask = null;
         completedFileAssets.clear(); skippedAssets.clear(); skippedMarkers.clear(); skippedQuizWindows.clear();awaitingReviewAssets.clear();awaitingReviewMarkers.clear();
         videoSettlements.clear();advancedMedia.clear();
         if (coursePage() && task) {
@@ -323,6 +325,7 @@
     function releaseVerification(){backgroundManual=false;verificationStopped=false;sessionStorage.removeItem(verificationKey);themeStatus?.setVerification('');}
     function pause(reason, allowRecovery = true) {
         if(verificationPresent()){holdVerification();return;}
+        activeKnowledgeTask = null;
         forceRate.releaseAll();
         cancelPrefetch();
         if (allowRecovery) diagnostics.record(reason,{phase:'recovery'});
@@ -340,7 +343,7 @@
         if (!isTop && !coursePage()) report('pause', { reason, task });
         if (recover) void recoverAutomatic(recoveryReason);
     }
-    function rememberSkipped(reason, discussion = null, quiz = null) {
+    function rememberSkipped(reason, discussion = null, quiz = null, knowledge = false) {
         skippedChapters.add(courseTask());
         const chapter = D.text(document.querySelector('#coursetree .posCatalog_active .posCatalog_name')) || '当前章节';
         const key = `xxt-skipped:${autoKey}`;
@@ -359,6 +362,10 @@
             entry.quizSkips=[...(old?.quizSkips||[]),...(item&&!old?.quizSkips?.some(prior=>prior.reason===item.reason)?[item]:[])].slice(-20);
             const prior=quiz?(entry.discussionSkips||[]).map(item=>`讨论“${item.title}”：${item.reason}`).join('；'):entry.reason;
             entry.reason=[prior,...entry.quizSkips.map(item=>item.reason)].filter(Boolean).join('；');
+        }
+        if (knowledge || old?.taskSkips?.length) {
+            entry.taskSkips = [...new Set([...(old?.taskSkips || []), ...(knowledge ? [reason] : [])])].slice(-20);
+            entry.reason = [...new Set([entry.reason, ...entry.taskSkips])].join('；');
         }
         GM_setValue(key, XxtRunLedger.record(list,entry));
         notify(`已记录待复核：${chapter}，${reason}。继续处理其余内容…`);
@@ -589,6 +596,45 @@
             (R?.find(pageWindow) || []).some(entry => !topicDone.has(entry.element)) ||
             view.markers.some(marker => marker.kind !== 'check' && !marker.done && !skippedMarkers.has(marker.element));
     }
+    function skippableKnowledge(){
+        const current=activeKnowledgeTask;
+        if(!current||!automatic||stopped||unloaded||recovering||task!==courseTask()||stepTransition||
+           previewClient||previewWorker||quietNow()||verificationBlocked()||hasVideoQuiz()||
+           (current.kind==='document'&&parentReadingFiles&&!openedDocument))return null;
+        return current;
+    }
+    function skipKnowledgeTask(){
+        const current=skippableKnowledge();
+        if(!current)throw Error('当前没有可跳过的音视频或资料任务。');
+        const {kind,asset}=current,view=pageInventory();
+        const list=kind==='document'?view?.documents:view?.videos;
+        const live=list?.find(item=>item.id===asset.id&&item.root===asset.root&&item.video===asset.video&&
+            item.entry?.element===asset.entry?.element&&item.container===asset.container);
+        if(!live||(kind==='document'?fileDone(live):videoDone(live)))throw Error('当前任务已结束或变化，请重新核对。');
+        beforeClick();
+        activeKnowledgeTask=null;
+        skippedAssets.add(live.id);
+        if(live.container)skippedMarkers.add(live.container);
+        epoch++;
+        if(kind==='document') {
+            closeDocument();
+            expectedDocumentTask='';documentOwner=null;
+        } else {
+            if(live.video){forceRate.releaseAll();live.video.pause();}
+            pageVideo=null;
+            expectedVideoTask='';videoFinishProbe=null;
+        }
+        for(const [source,entry] of frames){
+            if(entry.kind!==kind||!covers(live,source,kind))continue;
+            post(source,'stop',{target:entry.nonce});
+            entry.running=false;
+        }
+        const title=live.entry?.label||live.container?.getAttribute('title')||'本页第 '+(list.indexOf(live)+1)+' 项';
+        const label=kind==='document'?'资料':live.mediaKind==='audio'?'音频':'视频';
+        rememberSkipped('手动跳过'+label+'：'+title.slice(0,120),null,null,true);
+        pageBlockedAt=0;unknownSince=0;unknownTask='';
+        completedTasks.delete(task);
+    }
     function videoCandidate() {
         if (!coursePage() || !P || stepTransition) return null;
         return pageInventory().videos.find(asset => !videoDone(asset))?.video || null;
@@ -609,6 +655,7 @@
             record = {}; save();
         }
         currentCard = id; expectedCheckTask = ''; expectedVideoTask = ''; expectedDocumentTask = '';
+        activeKnowledgeTask = null;
         videoSettlements.clear();advancedMedia.clear();
         skippedAssets.clear(); skippedMarkers.clear(); skippedQuizWindows.clear();awaitingReviewAssets.clear();awaitingReviewMarkers.clear();
         completedFileAssets.clear();
@@ -639,7 +686,8 @@
         try { previousDocument = document.querySelector('#iframe')?.contentDocument; } catch {}
         stepTransition = { id: next.id, previousDocument };
         stopPlayer();
-        next.element.click(); notify(`当前页任务已完成，进入本章步骤：${next.label}`);
+        const status = skippedAssets.size || skippedMarkers.size ? '当前页处理结束，跳过项待复核' : '当前页任务已完成';
+        next.element.click(); notify(`${status}，进入本章步骤：${next.label}`);
         return true;
     }
     function settleEndedVideos(view) {
@@ -703,6 +751,7 @@
         return false;
     }
     async function coordinatePage() {
+        activeKnowledgeTask=null;
         if(verificationBlocked()){holdVerification();return true;}
         const view = pageInventory();
         if (!view) return false;
@@ -723,6 +772,7 @@
         const pending = view.videos.find(asset => !videoDone(asset));
         if (pending) {
             if(isTop&&globalThis.XxtCourseHub?.mediaGate(pending.video||pending.id))return true;
+            activeKnowledgeTask={kind:'video',asset:pending};
             pageReviewNeeded = true;
             expectedVideoTask = task; expectedDocumentTask = ''; expectedCheckTask = '';
             if (pending.video) {
@@ -743,12 +793,14 @@
                 pageVideo = video;
                 if (!pagePlaying && video.paused) {
                     pagePlaying = true;
+                    const playEpoch=epoch;
                     try {
                         if (window.app) { window.app.configs.autoplay = true; await window.app.play(); }
                         else { applyMediaRate(video); await video.play(); }
-                        if (stopped || quietNow()) video.pause();
-                    } catch (error) { if (!selectedMuted) audioBlocked(); else notify(`等待${label}可播放：${error.message}`); }
+                        if (stopped || quietNow() || playEpoch!==epoch) video.pause();
+                    } catch (error) { if(playEpoch===epoch){if (!selectedMuted) audioBlocked(); else notify(`等待${label}可播放：${error.message}`);} }
                     finally { pagePlaying = false; }
+                    if(playEpoch!==epoch)return true;
                 }
                 notify(`正在播放本页${label} ${view.videos.indexOf(pending) + 1}/${view.videos.length}，全部完成后再处理其他任务…`);
             } else {
@@ -763,6 +815,7 @@
         if (pageVideo) { pageVideo = null; pageReviewNeeded = true; stopPlayer(); }
         const file = view.documents.find(asset => !fileDone(asset));
         if (file) {
+            activeKnowledgeTask={kind:'document',asset:file};
             pageReviewNeeded = true; expectedVideoTask = ''; expectedDocumentTask = task;
             file.entry?.element.scrollIntoView({ block: 'center', behavior: 'auto' });
             const agent = [...frames].find(([source, entry]) => entry.kind === 'document' && !completedDocumentSenders.has(entry.nonce) && covers(file, source, 'document'));
@@ -1554,7 +1607,7 @@
             if (!stopped && automatic && !quietNow() && currentEpoch === epoch) {
                 closeDocument(); documentReportedTask = task;
                 if (coursePage()) throw new Error(`文献任务尚未完成：${error.message}`);
-                else { report('document-unrecognized', { task, reason: error.message }); automatic = false; }
+                else { report('document-unrecognized', { task, reason: error.message, documentIds:entries.map(entry=>entry.id) }); automatic = false; }
             } else throw error;
         } finally { closeDocument(); busy = false; }
         // Navigation/check readiness is separate from reading success. Never
@@ -1830,6 +1883,7 @@
             window.app?._reenterVideoMode?.(); return;
         }
         if (coursePage() && syncCard()) return;
+        const tickEpoch=epoch;
         try {
             const videoQuiz = Q.across(pageWindow).find(hit => !quizFrames.has(hit.win) && !skippedQuizWindows.has(hit.win));
             if (videoQuiz && (coursePage() || isTop || quizAuthorized)) { await solveVideoQuiz(videoQuiz); return; }
@@ -1867,7 +1921,7 @@
                 return;
             }
             await skipUnknownStep();
-        } catch (error) { pause(error.message); }
+        } catch (error) { if(!unloaded&&tickEpoch===epoch)pause(error.message); }
         finally { if (!inFlight) busy = false; }
     }
     function grant(source, entry, resume = false, resetVideoLines = false) {
@@ -2201,6 +2255,7 @@
         if(isTop&&coursePage())globalThis.XxtCourseHub?.attach(panel,{
             catalog:catalogSnapshot,canStart:()=>!quietNow()&&!verificationBlocked()&&!previewClient&&!previewWorker&&!unloaded,
             start:()=>start({manual:true}),stop:()=>stop(false),
+            canSkipTask:()=>Boolean(skippableKnowledge()),skipTask:skipKnowledgeTask,
             skip:async()=>{if(quietNow()||verificationBlocked()||previewClient||previewWorker)throw Error('请先结束休息、验证或预览');
                 stop(false);automatic=true;stopped=false;setTask(courseTask());completedTasks.delete(courseTask());
                 sessionStorage.setItem(autoKey,'1');rememberSkipped('用户主动跳过当前章节，待复核');await advanceCourse('用户主动跳过当前章节',true,true);}
@@ -2306,8 +2361,13 @@
             }
             if (['document-finished', 'document-unrecognized'].includes(data.type) && automatic && !stopped && data.task === courseTask() &&
                 frames.get(event.source)?.nonce === data.nonce && !completedDocumentSenders.has(data.nonce)) {
+                const ids=Array.isArray(data.documentIds)?data.documentIds:[];
+                const ownedFiles=pageInventory()?.documents.filter(asset=>covers(asset,event.source,'document'))||[];
+                const skippedFiles=ownedFiles.filter(asset=>skippedAssets.has(asset.id));
+                if(skippedFiles.length&&ownedFiles.every(asset=>skippedAssets.has(asset.id)))return;
+                if(skippedFiles.some(asset=>asset.entry&&ids.includes(asset.entry.id))&&
+                    !ownedFiles.some(asset=>!skippedAssets.has(asset.id)&&asset.entry&&ids.includes(asset.entry.id)))return;
                 if (data.type === 'document-finished') {
-                    const ids = Array.isArray(data.documentIds) ? data.documentIds : [];
                     for (const asset of pageInventory()?.documents || []) {
                         if (asset.root !== event.source && !descendant(asset.root, event.source) && !descendant(event.source, asset.root)) continue;
                         if (asset.entry && (ids.includes(asset.entry.id) ||
@@ -2339,6 +2399,7 @@
             }
             if (data.type === 'video-ended' && automatic && !stopped && data.task === courseTask() && frames.get(event.source)?.nonce === data.nonce &&
                 frames.get(event.source)?.mediaId === data.mediaId && !completedMedia.has(`${data.nonce}/${data.mediaId}`)) {
+                if(skippedAssets.size&&pageInventory()?.videos.some(asset=>skippedAssets.has(asset.id)&&covers(asset,event.source,'video')))return;
                 if(isTop)globalThis.XxtCourseHub?.mediaEnded();
                 completedMedia.add(`${data.nonce}/${data.mediaId}`);
                 expectedVideoTask = '';

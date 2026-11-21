@@ -16,7 +16,7 @@ const media = `data:audio/wav;base64,${wav.toString('base64')}`;
 const observations = [];
 const marker = '<div class="ans-job-icon" aria-label="任务点未完成"></div>';
 const videoFrame = (n, cross = false) => `<div class="ans-attach-ct videoContainer" id="ext-gen1050" data-video="${n}">${marker}<iframe class="ans-insertvideo-online" jobid="video-${n}" objectid="object-${n}" src="${cross ? 'https://mooc1-1.chaoxing.com' : ''}/ananas/modules/video/index.html?n=${n}" style="width:850px;height:350px"></iframe></div>`;
-async function scenario({ name, mixed = false, lazy = false, unknown = false, lag = false, stop = false, cross = false, replay = false, replayFails = false, stopReplay = false, heal = false, stopRecovery = false, onlyRecovery = false, quietRecovery = false, promptNext = false, unknownAfterResult = false, background = false, noAi = false, popup = false } = {}) {
+async function scenario({ name, mixed = false, lazy = false, unknown = false, lag = false, stop = false, cross = false, replay = false, replayFails = false, stopReplay = false, heal = false, stopRecovery = false, onlyRecovery = false, quietRecovery = false, promptNext = false, unknownAfterResult = false, background = false, noAi = false, popup = false, skipVideo = false, skipFile = false } = {}) {
     const context = await browser.newContext({ viewport: { width: 1500, height: 1200 } });
     const events = [];
     await context.exposeBinding('__event', (_, value) => events.push(value));
@@ -47,7 +47,7 @@ async function scenario({ name, mixed = false, lazy = false, unknown = false, la
                 (mixed ? `<div class="ans-attach-ct" data-file>${marker}<button class="file" title="Synthetic.pdf">Synthetic.pdf</button><div id="view"></div></div><div class="ans-attach-ct" data-work>${marker}<iframe src="/work" style="width:850px;height:500px"></iframe></div>` : '') +
                 (unknown ? `<div class="ans-attach-ct" data-unknown>${marker}<p>Unsupported required task</p></div>` : '') +
                 `<script>window.addEventListener('message',event=>{if(event.data?.testSettlement&&!${replayFails})setTimeout(()=>{const el=document.querySelector('[data-video="2"]');el.classList.add('ans-job-finished');el.querySelector('.ans-job-icon').setAttribute('aria-label','任务点已完成')},700);if(event.data?.testEnd){const n=event.data.testEnd;if((!${lag}&&!${replay})||n!==2){const el=document.querySelector('[data-video="'+n+'"]');el.classList.add('ans-job-finished');el.querySelector('.ans-job-icon').setAttribute('aria-label','任务点已完成')}if(n===1&&${lazy})setTimeout(()=>{document.getElementById('late').innerHTML=${JSON.stringify(videoFrame(2, cross))}},400)}});
-                document.querySelector('.file')?.addEventListener('click',()=>{__event('doc-open');document.getElementById('view').innerHTML='<div role="dialog" class="modal"><button aria-label="关闭">×</button><div class="doc-preview" style="height:260px;overflow:auto"><canvas height="3000"></canvas></div></div>';document.querySelector('.modal button').onclick=()=>{__event('doc-close');document.querySelector('[data-file]').classList.add('ans-job-finished');document.getElementById('view').replaceChildren()}});</script>`;
+                document.querySelector('.file')?.addEventListener('click',()=>{__event('doc-open');document.getElementById('view').innerHTML='<div role="dialog" class="modal"><button aria-label="关闭">×</button><div class="doc-preview" style="height:260px;overflow:auto"><canvas height="3000"></canvas></div></div>';document.querySelector('.modal button').onclick=()=>{__event('doc-close');if(!${skipFile})document.querySelector('[data-file]').classList.add('ans-job-finished');document.getElementById('view').replaceChildren()}});</script>`;
         } else if (u.pathname.includes('/modules/video/')) body = `<video id="video_html5_api" muted controls style="width:800px;height:300px" ${u.searchParams.get('n') === '1' ? `src="${media}"` : ''}></video><button class="vjs-big-play-button" title="播放视频">播放视频</button><script>const v=document.querySelector('video'),n=${Number(u.searchParams.get('n'))};document.querySelector('button').onclick=()=>{if(!v.src)v.src=${JSON.stringify(media)};v.play();};v.addEventListener('play',()=>__event('play:'+n));if(${replay}&&n===2){const b=document.createElement('button');b.className='vjs-play-control vjs-control vjs-button vjs-paused';b.title='重播';b.type='button';b.setAttribute('aria-disabled','false');b.innerHTML='<span aria-hidden="true" class="vjs-icon-placeholder"></span><span class="vjs-control-text" aria-live="polite">重播</span>';document.body.append(b);v.addEventListener('ended',()=>b.classList.add('vjs-ended'));b.onclick=()=>{__event('replay:'+n);v.play();window.parent.postMessage({testSettlement:true},'*')}}v.addEventListener('ended',()=>{__event('ended:'+n);window.parent.postMessage({testEnd:n},'*')});</script>`;
         else if (u.pathname === '/work') body = `<div class="TiMu"><div class="Zy_TItle"><span class="newZy_TItle">【单选题】</span>${u.searchParams.has('second') ? 'Second card' : 'Inline card'} 1+1?</div><ul class="Zy_ulTop"><li><span class="num_option choice1">A</span><a class="after">2</a></li><li><span class="num_option choice1">B</span><a class="after">3</a></li></ul></div><a class="btnSubmit workBtnIndex">提交</a><script>document.querySelectorAll('.num_option').forEach(x=>x.onclick=()=>x.classList.add('check_answer'));document.querySelector('.btnSubmit').onclick=()=>{__event('submit');window.frameElement.closest('.ans-attach-ct')?.classList.add('ans-job-finished');document.body.innerHTML='<p>满分:100</p><p>最终成绩100分</p>'};</script>`;
         else return route.fulfill({ body: '' });
@@ -56,6 +56,16 @@ async function scenario({ name, mixed = false, lazy = false, unknown = false, la
     const page = await context.newPage();
     try {
         await page.goto('https://mooc1.chaoxing.com/mycourse/studentstudy?courseId=synthetic');
+        const skip = page.locator('[data-hub-skip-task]');
+        async function openSkip() {
+            await page.locator('[data-workspace-tab=course]').click();
+            const group = page.locator('details').filter({has:skip}).last();
+            if (await group.getAttribute('open') === null) await group.locator('summary').click();
+        }
+        if (skipVideo) {
+            await openSkip();
+            assert(await skip.isDisabled());
+        }
         await page.locator('[data-action="start"]').click();
         const first = page.frames().find(frame => frame.url().includes('/modules/video/') && frame.url().includes('n=1'));
         await first.waitForFunction(() => !document.querySelector('video').paused);
@@ -69,7 +79,12 @@ async function scenario({ name, mixed = false, lazy = false, unknown = false, la
             await first.evaluate(html => { const box=document.createElement('section');box.className='ans-videoquiz';box.innerHTML=html;box.querySelector('#videoquiz-continue').style.display='none';document.body.append(box);document.querySelector('video').pause(); },html);
         }
         assert(!events.includes('model')); assert(!events.includes('card:1'));
-        if (!popup) await first.evaluate(() => { const v = document.querySelector('video'); v.currentTime = v.duration - 0.05; });
+        if (skipVideo) {
+            await skip.click();
+            await first.waitForFunction(() => document.querySelector('video').paused);
+            assert.equal(await page.frameLocator('#iframe').locator('[data-video="1"] .ans-job-icon').getAttribute('aria-label'), '任务点未完成');
+            assert(!events.includes('ended:1'));
+        } else if (!popup) await first.evaluate(() => { const v = document.querySelector('video'); v.currentTime = v.duration - 0.05; });
         await page.waitForFunction(() => [...document.querySelectorAll('iframe')].length > 0);
         let second;
         for (let n = 0; n < 40 && !second; n++) { second = page.frames().find(frame => frame.url().includes('/modules/video/') && frame.url().includes('n=2')); if (!second) await page.waitForTimeout(100); }
@@ -138,10 +153,18 @@ async function scenario({ name, mixed = false, lazy = false, unknown = false, la
         if (mixed) {
             await page.waitForFunction(() => /文献已打开/.test(document.querySelector('[data-xxt-codex-panel] pre').textContent), null, { timeout: 10000 });
             assert(!events.includes('model')); assert(!events.includes('card:1'));
-            await page.waitForTimeout(250);
-            for (const frame of page.frames()) await frame.evaluate(() => { window.__offset += 58500; });
-            await page.waitForTimeout(300); assert(!events.includes('doc-close'));
-            for (const frame of page.frames()) await frame.evaluate(() => { window.__offset += 3000; });
+            if (skipFile) {
+                await openSkip();
+                await page.screenshot({path:`${temp}/manual-skip-resource.png`});
+                await skip.click();
+                await page.frameLocator('#iframe').locator('.modal').waitFor({state:'detached'});
+                assert.equal(await page.frameLocator('#iframe').locator('[data-file] .ans-job-icon').getAttribute('aria-label'), '任务点未完成');
+            } else {
+                await page.waitForTimeout(250);
+                for (const frame of page.frames()) await frame.evaluate(() => { window.__offset += 58500; });
+                await page.waitForTimeout(300); assert(!events.includes('doc-close'));
+                for (const frame of page.frames()) await frame.evaluate(() => { window.__offset += 3000; });
+            }
         }
         await page.waitForFunction(() => document.querySelectorAll('#coursetree .posCatalog_select')[1].classList.contains('posCatalog_active'), null, { timeout: 20000 });
         assert.equal(events.filter(x => x === 'next').length, 1);
@@ -161,6 +184,10 @@ async function scenario({ name, mixed = false, lazy = false, unknown = false, la
             assert.equal(skipped.length>0,!heal,'Skipped content must be recorded separately, without inventing platform completion.');
         }
         if(replay)assert.equal(events.filter(x=>x==='replay:2').length,1);
+        if(skipVideo||skipFile){
+            const records=await page.evaluate(()=>Object.entries(localStorage).filter(([key])=>key.startsWith('xxt-skipped:')).flatMap(([,value])=>JSON.parse(value)));
+            assert.equal(records.filter(record=>record.taskSkips?.some(reason=>reason.startsWith('手动跳过'))).length,1);
+        }
         assert.equal(events.filter(x => x === 'model').length, noAi ? 0 : mixed ? 2 : 1, 'Each quiz page needs its own result, even with repeated question IDs.');
         assert(events.indexOf('ended:2') < events.indexOf('card:1'));
         if (mixed) { if (!noAi) assert(events.indexOf('doc-close') < events.indexOf('model')); assert.equal(events.filter(x => x === 'submit').length, noAi ? 0 : 2); }
@@ -178,8 +205,14 @@ async function scenario({ name, mixed = false, lazy = false, unknown = false, la
         throw error;
     } finally { await context.close(); }
 }
+async function verifyManualSkip(){
+    await scenario({name:'skip-only-current-same-origin-video',skipVideo:true});
+    await scenario({name:'skip-only-current-cross-origin-video',skipVideo:true,cross:true});
+    await scenario({name:'skip-only-current-document-then-same-chapter-quiz',skipFile:true,mixed:true});
+}
 try {
-    if(process.argv.includes('--no-ai')) { await scenario({name:'no-ai-videos-documents-two-checks',mixed:true,noAi:true}); await scenario({name:'no-ai-same-origin-popup',noAi:true,popup:true}); await scenario({name:'no-ai-cross-origin-popup',noAi:true,cross:true,popup:true}); await scenario({name:'no-ai-stop-video',noAi:true,stop:true}); }
+    if(process.argv.includes('--skip-task-only')) await verifyManualSkip();
+    else if(process.argv.includes('--no-ai')) { await scenario({name:'no-ai-videos-documents-two-checks',mixed:true,noAi:true}); await scenario({name:'no-ai-same-origin-popup',noAi:true,popup:true}); await scenario({name:'no-ai-cross-origin-popup',noAi:true,cross:true,popup:true}); await scenario({name:'no-ai-stop-video',noAi:true,stop:true}); }
     else if(process.argv.includes('--background-only')) {await scenario({name:'background-settlement-recheck',lag:true,background:true});}
     else if(process.argv.includes('--result-only')) {await scenario({name:'graded-100-restart-then-skip-unknown',unknownAfterResult:true});}
     else if(process.argv.includes('--navigation-only')) {await scenario({name:'skip-confirms-incomplete-task-next',unknown:true,promptNext:true});await scenario({name:'answers-only-cancels-auto-restart',unknown:true,onlyRecovery:true});}
@@ -210,6 +243,7 @@ try {
     await scenario({name:'night-rest-cancels-auto-restart',unknown:true,quietRecovery:true});
     await scenario({name:'skip-confirms-incomplete-task-next',unknown:true,promptNext:true});
     await scenario({name:'graded-100-restart-then-skip-unknown',unknownAfterResult:true});
+    await verifyManualSkip();
     }
     }
     await writeFile(`${temp}/observations.json`, JSON.stringify(observations, null, 2));

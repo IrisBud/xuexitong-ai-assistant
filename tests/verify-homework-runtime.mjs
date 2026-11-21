@@ -20,12 +20,27 @@ async function scenario(name,options={},check){
   window.__gm={'xxt-quiet-enabled':false,'xxt-ai-enabled':true,'xxt-ai-config':config,'xxt-ai-vision-enabled':true,'xxt-ai-vision-config':config,'xxt-purpose-schema':true};
   window.GM_getValue=(k,d)=>Object.hasOwn(__gm,k)?__gm[k]:d;window.GM_setValue=(k,v)=>__gm[k]=v;
   window.__counts={models:0,save:0,submit:0,write:0,sync:0,choice:0};
-  window.GM_xmlhttpRequest=spec=>{let cancelled=false;__counts.models++;const timer=setTimeout(()=>{if(cancelled)return;const payload=JSON.parse(spec.data),content=payload.messages[0].content,text=Array.isArray(content)?content[0].text:content;const qs=JSON.parse(text.split('\n题目：')[1].split('\n之前的平台反馈')[0]);const answers=qs.map(q=>({id:q.id,choices:q.type==='boolean'?[window.__different?'B':'A']:[],...(q.type==='essay'?{texts:['第一行\n第二行']}:{}),readable:true,confidence:1,explanation:'synthetic fixture'}));spec.onload({status:200,responseText:JSON.stringify({choices:[{message:{content:JSON.stringify({answers})}}]})});},options.slow?1200:20);return{abort(){cancelled=true;clearTimeout(timer);spec.onabort?.();}};};
+  window.GM_xmlhttpRequest=spec=>{let cancelled=false;__counts.models++;const timer=setTimeout(()=>{if(cancelled)return;const payload=JSON.parse(spec.data),content=payload.messages[0].content,text=Array.isArray(content)?content[0].text:content;const qs=JSON.parse(text.split('\n题目：')[1].split('\n之前的平台反馈')[0]);const answers=qs.map(q=>({id:q.id,choices:q.type==='boolean'?[window.__different?'B':'A']:[],...(q.type==='essay'?{texts:['第一行\n第二行']}:q.type==='blank'?{texts:Array.from({length:q.slots},(_,i)=>['甲；含标点','乙&<','丙'][i])}:{}),readable:true,confidence:1,explanation:'synthetic fixture'}));spec.onload({status:200,responseText:JSON.stringify({choices:[{message:{content:JSON.stringify({answers})}}]})});},options.slow?1200:20);return{abort(){cancelled=true;clearTimeout(timer);spec.onabort?.();}};};
   const c=document.createElement('canvas');c.width=240;c.height=80;const ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,240,80);ctx.fillStyle='black';ctx.font='20px sans-serif';ctx.fillText('Synthetic question image',3,35);const img=c.toDataURL('image/png');
   for(const image of document.querySelectorAll('img')){image.src=img;await image.decode();}
   window.UE={instants:{}};
   const field=document.querySelector('.eidtDiv textarea'),frame=document.querySelector('.eidtDiv iframe');frame.contentDocument.body.contentEditable='true';frame.contentDocument.body.innerHTML=options.draft?'<p>人工草稿</p>':'<p><br></p>';
   UE.instants.editor={key:field.id,textarea:field,iframe:frame,body:frame.contentDocument.body,isReady:false,setContent(v){__counts.write++;this.body.innerHTML=v;},getContent(){return this.body.innerHTML;},sync(){__counts.sync++;field.value=this.getContent();},fireEvent(){}};
+  window.__slotWrites=[];
+  if(options.rich){
+   const question=document.createElement('div');question.id='question900010';question.className='questionLi singleQuesId';
+   question.innerHTML='<h3 class="mark_name">3. <span class="colorShallow">填空题</span>按空位作答</h3><div class="stem_answer"></div>';
+   document.querySelector('#submitForm').append(question);
+   for(const n of [3,1,2]){
+    const row=document.createElement('div');row.className='blankItemDiv';const suffix=9000100+n;
+    row.innerHTML='<span class="tiankong">第'+(options.duplicate&&n===3?2:n)+'空：</span><div class="blankItemInp"><div class="InpDIV" id="inpDiv'+suffix+'">展开编辑器</div><div class="textDIV" style="display:none"><textarea id="answerEditor'+suffix+'" hidden></textarea><iframe id="ueditor_slot_'+n+'" title="文本编辑器"></iframe></div></div>';
+    question.querySelector('.stem_answer').append(row);
+    const frame=row.querySelector('iframe'),textarea=row.querySelector('textarea'),body=frame.contentDocument.body;
+    body.contentEditable='true';body.innerHTML=options.slotDraft&&n===2?'<p>人工填答</p>':'';textarea.value=body.innerHTML;
+    UE.instants['slot'+n]={key:textarea.id,textarea,iframe:frame,body,setContent(value){__slotWrites.push(n);body.innerHTML=value;},getContent(){return body.innerHTML;},sync(){if(!(options.slotFail&&n===2))textarea.value=body.innerHTML;}};
+    row.querySelector('.InpDIV').onclick=()=>{for(const item of question.querySelectorAll('.textDIV'))item.style.display='none';row.querySelector('.textDIV').style.display='';};
+   }
+  }
   const q=document.querySelector('.qtDetail').closest('.questionLi'),hidden=document.createElement('input');hidden.type='hidden';hidden.id='answer'+q.id.slice(8);q.append(hidden);
   for(const row of q.querySelectorAll('.answerBg'))row.onclick=()=>{__counts.choice++;for(const other of q.querySelectorAll('.num_option'))other.classList.remove('check_answer');row.querySelector('.num_option').classList.add('check_answer');hidden.value=row.querySelector('.answer_p').textContent==='对'?'true':'false';};
   for(const b of document.querySelectorAll('#submitFocus a'))b.onclick=()=>{const isSubmit=b.classList.contains('completeBtn');__counts[isSubmit?'submit':'save']++;if(options.noToast)return;const toast=document.createElement('p');toast.textContent=isSubmit?'提交成功!':'保存成功!';document.body.append(toast);};
@@ -65,5 +80,11 @@ try{
   await p.evaluate(()=>{__visible=true;__gm['xxt-quiet-enabled']=false;document.querySelector('#challenge')?.remove();document.dispatchEvent(new Event('visibilitychange'));});await p.waitForTimeout(350);assert.equal(await p.evaluate(()=>__counts.models),calls);
   if(trigger==='captcha'&&!legacy)assert.match(await p.locator('[data-xxt-verification="waiting"] .xxt-verification-notice').textContent(),/作答当前作业/);
  });
+ if(!legacy){
+  await scenario('rich-blanks-fill-native-slot-order',{rich:true},async p=>{await p.locator('[data-action=start]').click();await completed(p);assert.deepEqual(await p.evaluate(()=>__slotWrites),[1,2,3]);assert.deepEqual(await p.evaluate(()=>Object.keys(UE.instants).filter(k=>k.startsWith('slot')).sort().map(k=>UE.instants[k].body.textContent)),['甲；含标点','乙&<','丙']);assert.equal(await p.evaluate(()=>__counts.save+__counts.submit),0);});
+  await scenario('rich-blanks-duplicate-label-and-draft-are-protected',{rich:true,duplicate:true},async p=>{await p.locator('[data-action=start]').click();await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('未适配'));assert.deepEqual(await p.evaluate(()=>[__counts.models,__slotWrites.length]),[0,0]);});
+  await scenario('rich-blanks-handwritten-draft-is-preserved',{rich:true,slotDraft:true},async p=>{await p.locator('[data-action=start]').click();await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('已有作答'));assert.equal(await p.evaluate(()=>UE.instants.slot2.body.textContent),'人工填答');assert.deepEqual(await p.evaluate(()=>__slotWrites),[]);});
+  await scenario('rich-blanks-sync-failure-stops-later-slots',{rich:true,slotFail:true},async(p,c)=>{await c('作答后','save').click();await p.locator('[data-action=start]').click();await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('第 2 空'));assert.deepEqual(await p.evaluate(()=>__slotWrites),[1,2]);assert.equal(await p.evaluate(()=>__counts.save+__counts.submit),0);});
+ }
  await writeFile(resolve(out,'runtime-observations.json'),JSON.stringify({scope:'Final dist userscript in synthetic course/model/UEditor/handlers; uses user DOM shape and real browser capture/events. No live homework, paid model, save/submit or grades.',observations},null,2));console.log(JSON.stringify({passed:observations.length,observations}));
 }finally{await browser.close();}

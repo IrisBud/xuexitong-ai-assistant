@@ -1,6 +1,6 @@
-# 2026-11-21 · 1.8.1 候选模型目录复核
+# 2026-11-21 · 1.8.2 正式版模型目录复核
 
-本次再次查阅十家服务商的 45 个登记来源，保留 75 个文本与图文对话条目、手动输入和推理参数。OpenAI、Gemini、DeepSeek、MiMo、Kimi、智谱、百炼、火山方舟与硅基流动的登记入口走原生请求。Claude 的三个原生入口连接失败，改用官方网页复核 [模型目录](https://platform.claude.com/docs/en/models/overview)、[退役公告](https://platform.claude.com/docs/en/about-claude/model-deprecations)、[推理强度](https://platform.claude.com/docs/en/build-with-claude/effort) 及 [发布公告](https://platform.claude.com/docs/en/release-notes/overview)。小米 Chat API 的独立正文及部分地域、账号权限与关联退役文档未核实。未调用付费模型。下方 1.8.0 逐家来源表适用于本次保留的目录。
+本次再次查阅十家服务商的 45 个登记来源，保留 75 个文本与图文对话条目、手动输入和推理参数。OpenAI、Gemini、DeepSeek、MiMo、Kimi、智谱、百炼、火山方舟与硅基流动的登记入口走原生请求。43 个登记入口返回 HTTP 200。Claude 总览和退役公告的原生请求未取得正文，通过官方网页复核 [模型目录](https://platform.claude.com/docs/en/models/overview)、[退役公告](https://platform.claude.com/docs/en/about-claude/model-deprecations)、[推理强度](https://platform.claude.com/docs/en/build-with-claude/effort) 及 [发布公告](https://platform.claude.com/docs/en/release-notes/overview)。小米 Chat API 的独立正文及部分地域、账号权限与关联退役文档未核实。未调用付费模型。本次保留现有目录和推理参数，下方逐家来源表继续适用。
 
 # 2026-11-20 · 1.8.0 模型目录复核
 
