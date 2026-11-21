@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通自动化脚本（支持接入各种主流AI模型api）
 // @namespace    xuexitong-ai-assistant.public
-// @version      1.8.4
+// @version      1.8.5
 // @description  视频、文献与学习练习辅助；自配 AI API；不含任何密钥
 // @supportURL   https://github.com/IrisBud/xuexitong-ai-assistant/issues
 // @updateURL    https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js
@@ -22,7 +22,7 @@
 // ==/UserScript==
 
 (() => { const module = undefined, exports = undefined, define = undefined;
-globalThis.XxtRelease = {"version":"1.8.4","date":"2026-11-21","channel":"stable","changes":["修复考试复查中替换多选答案时，先取消旧选项可能导致新作答无法写入的问题。","确认失败时，考试面板显示当前题号和未更新的选项，并保留待复查标记。"]};
+globalThis.XxtRelease = {"version":"1.8.5","date":"2026-11-21","channel":"stable","changes":["修复考试自动作答时，选项已亮起却未保存的问题。脚本等学习通确认当前题保存后再继续。","填写结束后重新核对整卷。未确认保存的题会标为待复查，并暂停自动交卷。"]};
 /* Exact origins approved in the script manager's private storage, never by page messages. */
 (function (root) {
     'use strict';
@@ -5763,7 +5763,7 @@ return {Typr,md5:this.md5};
 /* Official model catalog. Refresh sources and capabilities before every release. */
 (function (root) {
     'use strict';
-    const verifiedAt = '2026-11-21', release = '1.8.4';
+    const verifiedAt = '2026-11-21', release = '1.8.5';
     const rows = (ids, profile = '', vision = null) => ids.map(id => ({ id, profile, vision }));
     const providers = {
         openai: { sources: ['https://developers.openai.com/api/docs/models','https://developers.openai.com/api/docs/changelog','https://developers.openai.com/api/docs/deprecations','https://developers.openai.com/api/docs/guides/latest-model','https://developers.openai.com/api/docs/guides/reasoning','https://developers.openai.com/api/docs/models/gpt-6.2-astra','https://developers.openai.com/api/docs/models/gpt-6.2-sol','https://developers.openai.com/api/docs/models/gpt-6-sol','https://developers.openai.com/api/docs/models/gpt-6.1-terra'], models: rows(['gpt-6.2-astra','gpt-6.2-sol','gpt-6-astra','gpt-6.1-sol'], 'openai', true).concat(rows(['gpt-6.1-terra','gpt-6-sol','gpt-6-luna'], 'openai-none', true)) },
