@@ -151,7 +151,7 @@
         if(!items.some(item=>item.review))return;
         const pendingItems=new Map();
         for(const item of items){
-            if(!item.review)continue;
+            if(!item.review||item.saveIssue)continue;
             const record=progress.reviews[item.id]??={reason:item.explanation};
             if(record.checked)continue;
             pendingItems.set(item.id,item);
@@ -249,7 +249,7 @@
         }
         check(subject);
         const fresh=D.scan();
-        if(snapshot(fresh)!==snapshot(entries)||D.count()!==entries.length||!fresh.every(entry=>D.matches(entry,answers.get(entry.question.id))))throw Error('试卷或现有答案已变化，等待人工核对。');
+        if(snapshot(fresh)!==snapshot(entries)||D.count()!==entries.length||!fresh.every(entry=>D.savedMatch(entry,answers.get(entry.question.id))))throw Error('试卷、作答或保存状态已变化，等待人工核对。');
         const open=D.submit();
         if(!open||D.dialog())throw Error('找不到唯一的原生交卷入口，或已有确认弹窗。');
         open.click();
@@ -257,7 +257,9 @@
         const confirm=D.confirm();
         if(!confirm)throw Error('没有出现已采集的交卷确认窗口，请人工核对。');
         check(subject);
-        if(!policy().minutesValid||msRemaining(policy().minutes)>0||pending()||!fresh.every(entry=>entry.element.isConnected&&D.matches(entry,answers.get(entry.question.id))))throw Error('交卷条件已变化，请人工核对。');
+        const final=D.scan();
+        if(!policy().minutesValid||msRemaining(policy().minutes)>0||pending()||snapshot(final)!==snapshot(entries)||
+            !final.every(entry=>D.savedMatch(entry,answers.get(entry.question.id))))throw Error('交卷条件已变化，请人工核对。');
         markPending();
         confirm.click();
         notice('已点击平台确认交卷，等待学习通回执。若页面未跳转，请先核对提交状态。');
@@ -291,41 +293,58 @@
         }
         const current=D.scan();
         if(full!==snapshot(current)||JSON.stringify(prior)!==JSON.stringify(current.map(D.read)))throw Error('题目或人工答案已变化，已保存作答理由，请人工核对。');
-        let filled=0;
+        notice('正在逐题填写并核对保存…');
         for(const entry of current){
             check(subject);
             const id=entry.question.id, item=rows.get(id), answer=answers.get(id);
             if(item.review)continue;
             try {
                 const resume=progress.partial[id]&&JSON.stringify(progress.partial[id])===JSON.stringify(D.read(entry));
-                const onWrite=value=>{
-                    if(D.matches(entry,answer)){
+                const onWrite=(value,saved)=>{
+                    if(!value)return;
+                    if(saved&&D.matches(entry,answer)){
                         if(!progress.partial[id])return;
                         delete progress.partial[id];
                     } else progress.partial[id]=value;
                     GM_setValue(progressKey,progress);
                 };
-                if(await D.fill(entry,answer,()=>check(subject),{replace:Boolean(resume),onWrite}))filled++;
-                else {item.review=true;item.explanation+='\n已有作答与建议不同，保留人工答案。';}
+                if(!await D.fill(entry,answer,()=>check(subject),{replace:Boolean(resume),onWrite})){
+                    item.review=true;item.explanation+='\n已有作答与建议不同，保留人工答案。';
+                }
             } catch(error) {
                 check(subject);
                 item.review=true;item.explanation+='\n'+error.message;
+                if(error.code==='EXAM_SAVE')item.saveIssue=true;
                 if(full!==snapshot(D.scan())){
                     writeReport(items,subject.at,current);
                     throw Error('试卷内容已变化，请重新核对。');
                 }
             }
         }
-        const remaining=items.filter(item=>item.review).length;
+        check(subject);
+        const fresh=D.scan();
+        if(full!==snapshot(fresh))throw Error('试卷内容已变化，请重新核对。');
+        let filled=0;
+        for(const entry of fresh){
+            const item=rows.get(entry.question.id);
+            if(item.review)continue;
+            if(D.savedMatch(entry,answers.get(item.id)))filled++;
+            else {
+                item.review=true;
+                item.saveIssue=true;
+                item.explanation+='\n整卷复查时，原生页面的作答或保存状态尚未确认。';
+            }
+        }
+        const remaining=items.length-filled;
         if(remaining){
-            await reviewPending(current,items,subject,settings,progress);
+            await reviewPending(fresh,items,subject,settings,progress);
             view.revealReview();
             notice(`已核对 ${filled} 题。还有 ${remaining} 题待复查，请在面板里确认作答。自动交卷已停止。`);
             return;
         }
-        writeReport(items,subject.at,current);
+        writeReport(items,subject.at,fresh);
         view.revealReport();
-        if(settings.submit==='auto')await autoSubmit(current,answers,subject);
+        if(settings.submit==='auto')await autoSubmit(fresh,answers,subject);
         else notice(`已核对 ${filled} 题，请查看作答理由并手动交卷。`);
     }
 
@@ -341,6 +360,7 @@
         if(XxtManualVerification.kind()){notice('请先手动处理学习通验证。');return;}
         humanHold=false;status.setVerification('');
         const subject={at:Date.now()};job=subject;
+        notice('正在核对当前试卷和作答状态…');
         try {
             check(subject);
             if(phase==='single'){openPaper();return;}
@@ -368,6 +388,7 @@
                 const answer=D.manualAnswer(entry,values);
                 await D.fill(entry,answer,()=>check(subject),{replace:true});
                 check(subject);
+                if(!D.savedMatch(entry,answer))throw Error('学习通未确认保存这一题，请核对原生试卷。');
                 progress.approved[id]=answer;
                 delete progress.partial[id];
                 GM_setValue(progressKey,progress);
@@ -410,7 +431,7 @@
                 const items=previous.items.map(item=>{
                     if(!item.confirmed)return item;
                     const entry=entries.find(candidate=>candidate.question.id===item.id);
-                    if(entry&&D.matches(entry,progress.approved[item.id]))return item;
+                    if(entry&&D.savedMatch(entry,progress.approved[item.id]))return item;
                     return {...item,confirmed:'',review:true,explanation:`${item.explanation}\n页面作答与人工确认记录不同，请重新复查。`};
                 });
                 showReport({...previous,items},entries);

@@ -102,7 +102,13 @@
         if(entry.rows.length){
             if(entry.rows.some(row=>!entry.element.contains(row)))return null;
             try {
-                return entry.rows.flatMap((row,i)=>XxtCodexDom.selected(row)?[entry.question.options[i].key]:[]).sort();
+                return entry.rows.flatMap((row,i)=>{
+                    const marker=row.querySelector('.saveSingleSelect.num_option[qid][data],.saveMultiSelect.num_option_dx[qid][data]');
+                    const checked=marker
+                        ? marker.classList.contains('check_answer')||marker.classList.contains('check_answer_dx')
+                        : XxtCodexDom.selected(row);
+                    return checked?[entry.question.options[i].key]:[];
+                }).sort();
             } catch {
                 return null;
             }
@@ -116,6 +122,80 @@
         : answer.texts?.map(value=>value.trim());
     const matches = (entry,answer) => !!answer && same(read(entry),target(entry,answer));
     const pause = ms => new Promise(resolve=>setTimeout(resolve,ms));
+    function nativeSave(entry) {
+        const doc=entry.element.ownerDocument;
+        const id=/^sigleQuestionDiv_(\d+)$/.exec(entry.element.id)?.[1];
+        const destination=doc.querySelector('#saveUrl')?.value;
+        if(!id||!destination||!doc.querySelector('#submitTest'))return null;
+        const url=new URL(destination,doc.URL);
+        const site=typeof unsafeWindow!=='undefined'&&unsafeWindow.document===doc?unsafeWindow:doc.defaultView;
+        return {doc,id,url,site,query:site.$||site.jQuery,card:doc.getElementById('answerSheet'+id)};
+    }
+    const nativeBusy = ({site}) => Boolean(site.submitOnce||site.submitAjaxHandle);
+    const savedOnPaper = (entry,native) => native.card?.classList.contains('active') &&
+        !entry.element.classList.contains('_unsavedstate') &&
+        ![...entry.element.querySelectorAll('.saveButtonClass')].some(available);
+    function savedMatch(entry,answer) {
+        const native=nativeSave(entry);
+        return matches(entry,answer)&&(!native||(!nativeBusy(native)&&savedOnPaper(entry,native)));
+    }
+    const saveError = message => Object.assign(Error(message),{code:'EXAM_SAVE'});
+    async function waitUntil(predicate,guard,limit=8000) {
+        const deadline=performance.now()+limit;
+        for(;;){
+            guard();
+            if(predicate())return true;
+            if(performance.now()>=deadline)return false;
+            await pause(50);
+        }
+    }
+    async function waitForNativeSaveSlot(native,guard) {
+        if(!await waitUntil(()=>!nativeBusy(native),guard)){
+            throw saveError('上一笔学习通保存尚未结束，请稍后继续。');
+        }
+    }
+    async function writeWithReceipt(entry,native,guard,action) {
+        if(!native){action();return;}
+        const {doc,id,url,query}=native;
+        if(url.origin!==doc.location.origin||!native.card||typeof query!=='function'){
+            throw saveError('无法读取学习通的原生保存结果，请在试卷中确认作答。');
+        }
+        // The native page changes the selection before saving and drops writes
+        // while its shared save lock is held.
+        await waitForNativeSaveSlot(native,guard);
+        const page=query(doc);
+        let saved;
+        function receipt(_event,xhr,request){
+            if(!URL.canParse(request?.url,doc.URL))return;
+            const requestUrl=new URL(request.url,doc.URL);
+            if(requestUrl.origin!==url.origin||requestUrl.pathname!==url.pathname||
+                String(request.type).toUpperCase()!=='POST'||typeof request.data!=='string')return;
+            const ids=new URLSearchParams(request.data).getAll('questionId');
+            if(!ids.at(-1)?.split(',').includes(id))return;
+            const response=xhr.responseJSON;
+            const rejected=[false,'error','submitted','forceSubmitted','resetTimeOver','stopExam','answerLocked','terminalLocked'];
+            saved=Boolean(xhr.status>=200&&xhr.status<300&&response&&
+                !response.error&&!rejected.includes(response.status)&&savedOnPaper(entry,native));
+        }
+        page.on('ajaxComplete',receipt);
+        try {
+            action();
+            if(!await waitUntil(()=>saved!==undefined&&!nativeBusy(native),guard)||!saved){
+                throw saveError('学习通未确认保存这一题。可重新开始以续填，或在原生试卷中手动保存。');
+            }
+        } finally {page.off('ajaxComplete',receipt);}
+    }
+    function saveCurrent(entry,native) {
+        const save=[...entry.element.querySelectorAll('.saveButtonClass')].filter(enabled);
+        if(save.length===1){save[0].click();return;}
+        const {site,id,query}=native;
+        if(save.length||typeof site.submitForm!=='function'||typeof site.changeQuestionCardColor!=='function'){
+            throw saveError('未找到可用的原生保存操作，请在试卷中手动保存。');
+        }
+        // Retry the existing value through the platform's own temporary-save
+        // handler without toggling an already selected option.
+        site.submitForm(true,query(entry.element),()=>site.changeQuestionCardColor(id));
+    }
     function reviewOptions(entry) {
         const {question,fields,rows,media}=entry;
         const value=read(entry);
@@ -144,7 +224,14 @@
         if(!entry.element.isConnected)throw Error('当前题目已更换。');
         const current=read(entry), expected=target(entry,answer);
         if(!current||!expected)throw Error('无法确认平台作答状态。');
-        if(same(current,expected))return true;
+        const native=nativeSave(entry);
+        if(same(current,expected)){
+            if(native&&(replace||!savedOnPaper(entry,native))){
+                await writeWithReceipt(entry,native,guard,()=>saveCurrent(entry,native));
+                onWrite(read(entry),true);
+            }
+            return true;
+        }
         if(current.some(Boolean)&&!replace)return false;
         if(entry.rows.length){
             const remove=replace&&entry.question.type==='multiple'?current.filter(key=>!expected.includes(key)):[];
@@ -159,13 +246,17 @@
                 if(!before||!enabled(row))throw Error('原生答题选项已变化。');
                 if(before.includes(key)===checked)continue;
                 if(!checked&&!expected.every(choice=>before.includes(choice)))throw Error('学习通未保留所有目标选项，请核对原生试卷。');
-                row.click();
+                await writeWithReceipt(entry,native,guard,()=>{
+                    row.click();
+                    if(native)onWrite(read(entry),false);
+                });
                 for(let attempt=0;attempt<10&&read(entry)?.includes(key)!==checked;attempt++){await pause(70);guard();}
                 const updated=read(entry);
                 if(updated?.includes(key)!==checked)throw Error(`学习通未确认选项 ${key} 的变更，请核对原生试卷。`);
-                onWrite(updated);
+                onWrite(updated,true);
             }
         } else {
+            if(native)await waitForNativeSaveSlot(native,guard);
             for(const [i,field] of entry.fields.entries()){
                 guard();
                 if(!enabled(field)||field.readOnly)throw Error('原生答题输入框已变化。');
@@ -174,7 +265,11 @@
                 field.value=expected[i];
                 field.dispatchEvent(new Event('input',{bubbles:true}));
                 field.dispatchEvent(new Event('change',{bubbles:true}));
-                if(field.value.trim()===expected[i])onWrite(read(entry));
+                if(field.value.trim()===expected[i])onWrite(read(entry),!native);
+            }
+            if(native){
+                await writeWithReceipt(entry,native,guard,()=>saveCurrent(entry,native));
+                onWrite(read(entry),true);
             }
         }
         guard();
@@ -190,5 +285,5 @@
         const control=node?.closest?.(`${submitSelector},${confirmSelector}`);
         return Boolean(control && /^(交卷|确定)$/.test(plain(control)));
     }
-    globalThis.XxtExamDom={phase,scope,preview,scan,read,fill,matches,count,submit,confirm,dialog,isSubmitControl,pageKey,reviewOptions,manualAnswer,paperKey:entries=>digest(JSON.stringify(entries.map(({question})=>question)))};
+    globalThis.XxtExamDom={phase,scope,preview,scan,read,fill,matches,savedMatch,count,submit,confirm,dialog,isSubmitControl,pageKey,reviewOptions,manualAnswer,paperKey:entries=>digest(JSON.stringify(entries.map(({question})=>question)))};
 })();

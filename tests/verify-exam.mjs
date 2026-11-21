@@ -48,7 +48,7 @@ async function setup(opts={}){
         const navigation=url.pathname===single&&opts.previewLink?previewControl.repeat(opts.ambiguousPreview?2:1):'';
         return route.fulfill({contentType:'text/html;charset=utf-8',body:url.pathname===result?'<p>交卷成功</p>':html+navigation});
     });
-    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway,keepOneChoice})=>{
+    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway,keepOneChoice,nativeSave})=>{
         window.unsafeWindow=window;
         const config={provider:'custom',protocol:'chat',model:'fixture',key:'fixture',baseUrl:'https://model.fixture.invalid/v1'};
         window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem('settings:'+key)||'null')??({'xxt-ai-enabled':true,'xxt-quiet-enabled':false,'xxt-ai-config':config,'xxt-ai-vision-enabled':vision||false,'xxt-ai-vision-config':config}[key]??fallback);
@@ -105,10 +105,66 @@ async function setup(opts={}){
                 event.preventDefault();counters.confirm++;modal.hidden=true;
                 if(receipt)location.href='/exam-ans/exam/test/look'+location.search;
             };
-            const selected=row=>classOnly?row.querySelector('.num_option').classList.contains('check_answer'):row.getAttribute('aria-checked')==='true';
+            const marker=row=>row.querySelector('.num_option,.num_option_dx');
+            const markClass=row=>nativeSave?.staleAria&&row.getAttribute('role')==='checkbox'?'check_answer_dx':'check_answer';
+            const selected=row=>classOnly||nativeSave?.staleAria?marker(row).classList.contains(markClass(row)):row.getAttribute('aria-checked')==='true';
             function mark(row,checked){
-                if(classOnly)row.querySelector('.num_option').classList.toggle('check_answer',checked);
+                if(classOnly||nativeSave?.staleAria)marker(row).classList.toggle(markClass(row),checked);
                 else row.setAttribute('aria-checked',String(checked));
+            }
+            const saved=new Map(), timers=new Map();
+            if(nativeSave){
+                document.body.insertAdjacentHTML('beforeend','<form id="submitTest"></form><input hidden id="saveUrl" value="/fixture/native-save"><ul id="topicNumberScroll"></ul>');
+                counters.native={dropped:0,requests:[],saved:0};
+                for(const [index,question] of Array.from(main.children).entries()){
+                    question.id='sigleQuestionDiv_'+(index+1);
+                    document.querySelector('#topicNumberScroll').insertAdjacentHTML('beforeend','<li id="answerSheet'+(index+1)+'"></li>');
+                    if(nativeSave.staleAria){
+                        for(const row of question.querySelectorAll('.answerBg')){
+                            const choice=marker(row);
+                            choice.setAttribute('qid',String(index+1));
+                            choice.setAttribute('data',choice.textContent);
+                            choice.className=row.getAttribute('role')==='checkbox'?'saveMultiSelect num_option_dx':'saveSingleSelect num_option';
+                        }
+                    }
+                }
+                window.changeQuestionCardColor=id=>{
+                    document.getElementById('answerSheet'+id).classList.toggle('active',Boolean(saved.get(Number(id))?.length));
+                };
+                window.submitForm=(_temporary,control,callback)=>{
+                    const question=control.nodeType?control:control.get(0);
+                    const id=Number(question.id.split('_').at(-1));
+                    if(window.submitOnce){counters.native.dropped++;return;}
+                    counters.native.requests.push(id);
+                    question.classList.add('_unsavedstate');
+                    window.submitOnce=true;
+                    const values=[...question.querySelectorAll('.answerBg')].filter(selected)
+                        .map(row=>marker(row).textContent);
+                    const text=question.querySelector('input')?.value;
+                    if(text)values.push(text);
+                    const failed=id===nativeSave.failFirst&&counters.native.requests.filter(q=>q===id).length===1;
+                    const responseJSON={status:failed?'error':'success'};
+                    const response={status:200,responseJSON};
+                    const url='/fixture/native-save?temporary=true';
+                    window.submitAjaxHandle=response;
+                    setTimeout(()=>{
+                        if(!failed){
+                            saved.set(id,values);
+                            counters.native.saved=saved.size;
+                            question.classList.remove('_unsavedstate');
+                            callback?.();
+                        }
+                        window.submitOnce=false;
+                        window.submitAjaxHandle=null;
+                        const jq=window.jQuery(document);
+                        jq.trigger('ajaxComplete',[{status:200,responseJSON:{status:'error'}},{url,type:'POST',data:'questionId=999'}]);
+                        jq.trigger('ajaxComplete',[response,{url,type:'POST',data:'questionId='+id}]);
+                        if(id===3&&nativeSave.eraseFirst){
+                            for(const row of main.children[0].querySelectorAll('.answerBg'))mark(row,false);
+                        }
+                    },75);
+                };
+                if(nativeSave.initialUnconfirmed)mark(main.querySelector('.answerBg'),true);
             }
             for(const row of document.querySelectorAll('.answerBg')){
                 if(classOnly)row.removeAttribute('aria-checked');
@@ -121,6 +177,16 @@ async function setup(opts={}){
                     if(single)for(const item of row.parentElement.querySelectorAll('[role=radio]'))mark(item,false);
                     mark(row,single||checked);
                     counters.fill++;
+                    if(nativeSave){
+                        const question=row.closest('.questionLi');
+                        const id=question.id.split('_').at(-1);
+                        const save=()=>window.submitForm(true,question,()=>window.changeQuestionCardColor(id));
+                        if(single)save();
+                        else {
+                            clearTimeout(timers.get(id));
+                            timers.set(id,setTimeout(save,100));
+                        }
+                    }
                     if(stopPartway&&counters.fill===2)document.querySelector('[data-xxt-exam-page] [data-action=stop]').click();
                 };
             }
@@ -141,9 +207,57 @@ const stats=page=>page.evaluate(()=>counters);
 const waitText=(page,text)=>page.waitForFunction(text=>document.querySelector('[data-xxt-exam-page] .xxt-status-card pre').textContent.includes(text),text);
 async function scenario(name,opts,check){
     const {page,context,errors}=await setup(opts);
-    try{await check(page);assert.deepEqual(errors,[]);outcomes.push(name);}finally{await context.close();}
+    try{await check(page);assert.deepEqual(errors,[]);outcomes.push(name);}
+    catch(error){
+        const status=await message(page).textContent({timeout:1000}).catch(()=>null);
+        throw new Error(`${name}: ${status||error.message}`,{cause:error});
+    } finally{await context.close();}
 }
 try {
+    await scenario('optimistic-selection-waits-for-native-save-on-a-fifty-question-paper',
+        {nativeSave:{},extraQuestions:47},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);
+        await waitText(page,'已核对 50 题');
+        const checked=await stats(page);
+        assert.equal(checked.native.dropped,0);
+        assert.equal(checked.native.saved,50);
+        assert.equal(checked.confirm,0);
+        assert.equal(await page.locator('#topicNumberScroll .active').count(),50);
+    });
+    await scenario('unconfirmed-existing-selection-is-saved-and-a-failed-receipt-can-resume',
+        {nativeSave:{initialUnconfirmed:true,failFirst:2}},async page=>{
+        await choice(page,'answer-auto').click();await choice(page,'submit-auto').click();
+        await start(page);await waitText(page,'还有 1 题待复查');
+        const checked=await stats(page);
+        assert.deepEqual(checked.native.requests,[1,2,3]);
+        assert.deepEqual([checked.native.saved,checked.open,checked.confirm],[2,0,0]);
+        assert.deepEqual(checked.reviewRequests,[]);
+        assert.match(await nthReview(page,2).innerText(),/学习通未确认保存/);
+        assert.equal(await page.locator('main [role=radio][aria-checked=true]').count(),1);
+        await choice(page,'submit-manual').click();
+        await start(page);await waitText(page,'已核对 3 题');
+        const resumed=await stats(page);
+        assert.deepEqual(resumed.native.requests,[1,2,3,2]);
+        assert.deepEqual([resumed.native.saved,resumed.models,resumed.confirm],[3,1,0]);
+    });
+    await scenario('final-paper-read-detects-an-earlier-choice-cleared-after-saving',
+        {nativeSave:{eraseFirst:true}},async page=>{
+        await choice(page,'answer-auto').click();await choice(page,'submit-auto').click();
+        await start(page);await waitText(page,'还有 1 题待复查');
+        assert.match(await nthReview(page,1).innerText(),/整卷复查/);
+        const checked=await stats(page);
+        assert.deepEqual([checked.open,checked.confirm],[0,0]);
+        assert.deepEqual(checked.reviewRequests,[]);
+    });
+    await scenario('native-choice-markers-win-over-stale-aria-after-a-save',{nativeSave:{staleAria:true}},async page=>{
+        await choice(page,'answer-auto').click();
+        await start(page);await waitText(page,'已核对 3 题');
+        assert.equal(await page.locator('main [role=radio][aria-checked=true]').count(),0);
+        assert.equal(await page.locator('main .check_answer').count(),1);
+        assert.equal(await page.locator('main .check_answer_dx').count(),2);
+        assert.equal((await stats(page)).native.saved,3);
+    });
     await scenario('reference-import-strong-preview-and-export',{uncertain:true},async page=>{
         assert.deepEqual(await page.locator('[data-homework-modes] button').allTextContents(),['章节','作业','考试']);
         const rows=await page.locator('[data-homework-modes] button').evaluateAll(list=>list.map(item=>item.getBoundingClientRect().top));
