@@ -58,6 +58,24 @@ try{
   }
   await context.close();
  });
+ await check('migrated-readme-help-opens-the-relevant-guide-section',async()=>{
+  const context=await browser.newContext();
+  const page=await pageAt(context);
+  for(const [query,href] of [
+   ['脚本猫与分发说明','guides/start.html#distribution'],
+   ['学校域名设置','guides/start.html#school-domains'],
+   ['视频任务点','guides/media.html#completion'],
+   ['只读结构采集','guides/troubleshooting.html#structure-collection']
+  ]){
+   await page.getByRole('searchbox',{name:'搜索教程'}).fill(query);
+   const result=page.locator(`.search-result[href="${href}"]`);
+   await result.click();
+   await page.waitForURL(`**/${href}`);
+   assert(await page.locator(`section[id="${href.split('#')[1]}"] h2`).isVisible());
+   await page.goto(base);
+  }
+  await context.close();
+ });
  await check('search-finds-topic-keywords-and-no-results-retains-directory',async()=>{
   const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await pageAt(context);const input=page.getByRole('searchbox',{name:'搜索教程'});await input.fill('WorkBuddy');await page.waitForFunction(()=>document.querySelector('[data-search-status]').textContent.includes('找到'));assert((await page.locator('.search-result').allTextContents()).some(t=>t.includes('WorkBuddy')));await input.fill('面板');await page.waitForFunction(()=>document.querySelectorAll('.search-result').length>1);await page.screenshot({path:resolve(out,'search-results.png')});await input.fill('nothing-matches-this-8842');await page.waitForFunction(()=>document.querySelector('[data-search-status]').textContent.includes('没有找到'));assert(await page.locator('[data-guide-index]').isVisible());await input.fill('');assert(await page.locator('[data-guide-index]').isVisible());await context.close();
  });
@@ -73,7 +91,7 @@ try{
   await page.goto(new URL('guides/start.html',base).href);await page.screenshot({path:resolve(out,'start-guide-1440.png'),fullPage:true});await context.close();
  });
  await check('no-javascript-retains-readable-content-and-direct-links',async()=>{
-  const context=await browser.newContext({javaScriptEnabled:false,viewport:{width:1100,height:900}}),page=await pageAt(context);await page.locator('.topic-shortcuts a').first().click();await page.waitForURL('**/guides/start.html');assert(await page.getByRole('heading',{name:'进入一条具体小节'}).isVisible());assert.equal(await page.locator('.article-body section').count(),6);await context.close();
+  const context=await browser.newContext({javaScriptEnabled:false,viewport:{width:1100,height:900}}),page=await pageAt(context);await page.locator('.topic-shortcuts a').first().click();await page.waitForURL('**/guides/start.html');assert(await page.getByRole('heading',{name:'进入一条具体小节'}).isVisible());assert.equal(await page.locator('.article-body section').count(),guides.find(guide=>guide.id==='start').sections.length);await context.close();
  });
  assert.deepEqual(errors,[]);
 }finally{

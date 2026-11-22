@@ -36,9 +36,10 @@ for(const name of ['exam-knowledge.js','exam-ui.js','exam-dom.js','exam-runtime.
 for(const name of ['platform.cjs','compat.cjs','bootstrap.js','core.cjs','retry.cjs','fonts.js','dom.js','capture.js','documents.js','manual-verification.js','reading.js','page-tasks.js','interruptions.js','video-lines.js','video-quiz.js','models.cjs','locator.cjs','run-ledger.cjs','dispatch.cjs','diagnostics.cjs','profiles.cjs','personas.cjs','ai.js','discussion.js','short-answer.js','saved-quizzes.cjs','updates.cjs','rate-notice.js','force-rate.js','homework.cjs','panel-layout.js','panel-motion.js','theme.js','audio.cjs','homework-dom.js','homework-runtime.js','course-hub.js','course-discussion.js','workflow.js','player.js'])assert(script.includes(readFileSync(resolve(root,'src',name),'utf8')),`Stale build: ${name}`);
 const {version}=JSON.parse(readFileSync(resolve(root,'package.json'),'utf8'));
 const release=JSON.parse(readFileSync(resolve(root,'src/release.json'),'utf8'));
-const readme=readFileSync(resolve(root,'README.md'),'utf8'),notice=release.channel==='candidate'
+const readme=readFileSync(resolve(root,'README.md'),'utf8').replaceAll('\r\n','\n'),notice=release.channel==='candidate'
     ? `当前文件是本地候选 ${version}` : `目前脚本最新版本为 ${version}，请已安装脚本的用户尽快更新`;
 assert(readme.includes(notice)&&readme.indexOf(notice)<readme.indexOf('\n## '),'README latest-version reminder must match package version and precede features');
+assert(readme.includes(`## 功能\n<!-- 功能核对版本：${version} -->`),'Review the README feature summary and update its verification version');
 assert(script.includes(`@version      ${version}`));assert(script.includes('@connect      *'));
 assert.equal(release.version,version);assert.deepEqual(JSON.parse(readFileSync(resolve(root,'dist/release.json'),'utf8')),release);
 const meta=readFileSync(resolve(root,'dist/xuexitong-ai-assistant.meta.js'),'utf8');assert.equal(meta,script.slice(0,script.indexOf('(() => {')));

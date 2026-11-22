@@ -6,37 +6,25 @@
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
 [![Stars](https://img.shields.io/github/stars/IrisBud/xuexitong-ai-assistant?style=flat-square&color=267356)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
 
-![学习助手：打开一节课，开始学习](docs/readme/guide-cover.svg)
-
-自动播放音视频、阅读资料；接入自己的 AI 后，可以辅助处理章节测验、讨论和作业。作业已支持识别到的多空富文本填空；在「课程」区可跳过当前音视频或资料，继续同章待办。
-
-学习板块的「考试」为测试版。逐题答题页点击「开始考试辅助」，可打开整卷预览；可导入参考资料、导出逐题理由，并设置填写、交卷方式和最早交卷时间。考试功能原为俗称「水课」的课程练习和获准使用 AI 的测验开发。请遵守校方及任课教师的考试规则。违反规则使用时，因被检测、成绩处理或纪律处分产生的后果由使用者自行承担，作者不对此负责。
-
-同一答卷中断后，再点「开始考试辅助」可接着处理剩余题目。首次待复查时，AI 会再分析一次，补充逐项或简答理由。点「去复查」定位题目，选定答案并点「确认作答」，页面回读一致后会清除标记。
-
-考试多选在自动作答或「确认作答」时会先填完整组，再保存一次。面板区分答案「待复查」和「保存待确认」。有题尚未确认保存时会暂停自动交卷。
-
-学习通弹出滑块、图片验证码或人脸验证时，面板会变色并提示手动处理。完成验证后，请手动继续。
-
 [![一键安装 / 更新脚本](docs/readme/install.svg)](https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js)
-
-**[打开使用手册](https://irisbud.github.io/xuexitong-ai-assistant/)** · [最新正式版](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest)
+[![打开使用手册](docs/readme/manual.svg)](https://irisbud.github.io/xuexitong-ai-assistant/)
 
 <a id="三步跑起来"></a>
 <a id="安装学习助手"></a>
 <a id="第一次使用从哪里打开学习助手"></a>
 
-<!-- maintenance-entry -->
-[脚本猫与分发说明](docs/SCRIPTCAT.md) · [课程列表与接续](docs/COURSE_QUEUE_ENTRY.md) · [视频任务点说明](docs/ISSUE_7_TASKPOINT.md) · [只读结构采集](docs/ISSUE_10_COLLECTION.md) · 队列主题随主面板变化 · [学校域名设置](docs/SCHOOL_DOMAINS.md)
-<!-- /maintenance-entry -->
+<a id="先跑起来"></a>
 
-## 先跑起来
+## 安装步骤/使用教程
 
 1. **装油猴。** 在 Chrome、Edge 等电脑浏览器安装 [Tampermonkey](https://www.tampermonkey.net/)，到扩展详情开启“允许用户脚本”。[看权限设置图](docs/getting-started/tampermonkey-permissions.png)
 2. **装脚本。** 点上面的“一键安装 / 更新脚本”，在油猴确认页点安装或更新。装好后刷新学习通页面。
 3. **打开具体小节。** 进入课程 → 章节 → 点击“1.1”“1.2”这样的小节名称，右下角出现“学习助手”。课程首页和目录页没有学习面板。
 
-只看视频、读资料，选“不接入 AI”，直接点“开始自动”。需要辅助答题，先到“接口”区保存自己的模型配置，点“测试 AI”，通过后再开始。
+<a id="配置-ai"></a>
+<a id="模型配置"></a>
+
+只看视频、读资料，选“不接入 AI”，直接点“开始自动”。需要辅助答题，先到“接口”区保存自己的[模型配置](https://irisbud.github.io/xuexitong-ai-assistant/guides/ai.html)，点“测试 AI”，通过后再开始。
 
 <details>
 <summary>安装按钮打不开，或只显示一整页代码？</summary>
@@ -49,24 +37,19 @@
 
 <a id="能干什么"></a>
 
-## 能做哪些事
+<a id="能做哪些事"></a>
 
-- **课程学习：** 视频、音频、PDF / Word、专题阅读；支持静音、倍速，处理后核对平台任务点。
-- **题目与作业：** 已适配的单选、多选、判断、填空、简答；可预览答案，按设置填写、暂存或提交。作业仍在持续完善，答案需要复核。
-- **课程讨论：** 从课程侧栏打开「讨论」，在学习助手里读取至多 50 条话题、勾选并回复。「新建话题」支持按数量发布课程问题或发布学习收获。
-- **课程安排：** 章节搜索、跳过记录、集中补做和多门课程队列。只学本课，不需要先建队列。
-- **模型与外观：** 文字、图片接口分开配置；支持主流服务商、自定义接口、本地 Codex 和 WorkBuddy / CodeBuddy，也可以换面板主题。
+## 功能
+<!-- 功能核对版本：1.8.6 -->
 
-<a id="配置-ai"></a>
-<a id="模型配置"></a>
+- **课程学习：** 视频、音频、PDF / Word 和专题阅读，支持静音与倍速。
+- **章节测验与作业（作业为测试版）：** 支持已适配题型的答案预览、填写、暂存和提交。
+- **章节与课程讨论：** 章节讨论可设置回复字数。课程讨论支持回复话题、发布课程问题和学习收获。
+- **考试辅助（测试版）：** 支持整卷预览、参考资料导入和逐题复核。使用范围见[考试教程](https://irisbud.github.io/xuexitong-ai-assistant/guides/answers.html#exam)。
+- **课程安排：** 支持章节搜索、跳过记录、集中补做和多门课程队列。只学本课，无需先建队列。
+- **模型与外观：** 文字、图片接口可分开配置，支持主流服务商、自定义接口、本地 Codex 和 WorkBuddy / CodeBuddy。可切换面板主题。
 
-| 现在想做什么 | 看这里 |
-| --- | --- |
-| 不会填地址、模型或 Key | [配置 AI](https://irisbud.github.io/xuexitong-ai-assistant/guides/ai.html) |
-| 用电脑上的 Codex | [本地 Codex 连接](https://irisbud.github.io/xuexitong-ai-assistant/guides/codex.html) |
-| 用 WorkBuddy 对应账号连接 | [WorkBuddy / CodeBuddy](https://irisbud.github.io/xuexitong-ai-assistant/guides/workbuddy.html) |
-| 不知道在哪里勾选课程 | [课程与队列](https://irisbud.github.io/xuexitong-ai-assistant/guides/courses.html) |
-| 找不到面板、不能切章、提示报错 | [问题排查](https://irisbud.github.io/xuexitong-ai-assistant/guides/troubleshooting.html) |
+![学习助手：打开一节课，开始学习](docs/readme/guide-cover.svg)
 
 <a id="开始前记住这几件事"></a>
 <a id="建议将课程页保持在前台"></a>
@@ -102,12 +85,12 @@
 | 1.7.6 · 2026-10-29 | 修复部分作业多选题的选项结构识别 |
 | 1.7.5 · 2026-10-28 | 等待慢加载播放器，切章时清理旧播放器状态 |
 
-[完整更新记录](CHANGELOG.md) · [历史版本](docs/HISTORY.md) · [安装后怎么更新](https://irisbud.github.io/xuexitong-ai-assistant/guides/start.html#update)
+[最新正式版](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest) · [完整更新记录](CHANGELOG.md) · [历史版本](docs/HISTORY.md) · [安装后怎么更新](https://irisbud.github.io/xuexitong-ai-assistant/guides/start.html#update)
 
 ## 反馈与贡献
 
 [反馈问题或建议](https://github.com/IrisBud/xuexitong-ai-assistant/issues/new/choose)时，写清版本、卡在哪一步和面板提示；截图先遮掉账号、Key、连接码及完整课程地址。想提代码或补教程，欢迎看 [贡献说明](CONTRIBUTING.md)。
 
-用着顺手，欢迎点个 [Star⭐](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)~ 也可以 [支持作者](docs/SUPPORT.md)。
+用着顺手，欢迎点个 [Star⭐](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)~ 也可以 [![支持作者](docs/support-badge.svg)](docs/SUPPORT.md)。
 
 字体解析、jQuery、html2canvas 的许可及角色素材来源见 [NOTICE.md](NOTICE.md)。角色原设计作者为 [ZipZipPipe](https://space.bilibili.com/4168597)，不代表模型服务商官方形象。

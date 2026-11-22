@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="215" height="66" viewBox="0 0 215 66" role="img" aria-labelledby="title">
+<title id="title">打开使用手册</title>
+<rect x="1" y="1" width="213" height="64" rx="12" fill="#eef5ef" stroke="#91ab9a"/>
+<rect x="14" y="15" width="36" height="36" rx="8" fill="#dcebe0"/>
+<g fill="none" stroke="#245b46" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M32 25c-3-3-7-3-11-2v17c4-1 8-1 11 2 3-3 7-3 11-2V23c-4-1-8-1-11 2v17"/>
+  <path d="m25 29 3 .5m-3 4 3 .5m8-4.5 3-.5m-3 5 3-.5"/>
+  <path d="m192 28 5 5-5 5"/>
+</g>
+<text x="62" y="40" font-family="system-ui,'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif" font-size="19" font-weight="700" fill="#214e3e">打开使用手册</text>
+</svg>
