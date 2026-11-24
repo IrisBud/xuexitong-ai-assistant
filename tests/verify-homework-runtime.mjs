@@ -27,6 +27,54 @@ async function scenario(name,options={},check){
   const field=document.querySelector('.eidtDiv textarea'),frame=document.querySelector('.eidtDiv iframe');frame.contentDocument.body.contentEditable='true';frame.contentDocument.body.innerHTML=options.draft?'<p>人工草稿</p>':'<p><br></p>';
   UE.instants.editor={key:field.id,textarea:field,iframe:frame,body:frame.contentDocument.body,isReady:false,setContent(v){__counts.write++;this.body.innerHTML=v;},getContent(){return this.body.innerHTML;},sync(){__counts.sync++;field.value=this.getContent();},fireEvent(){}};
   window.__slotWrites=[];
+  for(const b of document.querySelectorAll('#submitFocus a'))b.onclick=()=>{const isSubmit=b.classList.contains('completeBtn');__counts[isSubmit?'submit':'save']++;if(options.noToast)return;const toast=document.createElement('p');toast.textContent=isSubmit?'提交成功!':'保存成功!';document.body.append(toast);};
+  if(options.programming){
+   window.__programmingWrites=[];
+   window.__programmingPrompt=null;
+   window.__programmingCode='#include <stdio.h>\n\nint main(void) {\n\tprintf("<&>\\n");\n    return 0;\n}';
+   window.GM_xmlhttpRequest=spec=>{
+    __counts.models++;
+    const prompt=JSON.parse(spec.data).messages[0].content;
+    const questions=JSON.parse(prompt.split('\n题目：')[1].split('\n之前的平台反馈')[0]);
+    __programmingPrompt={questions,asksForSource:prompt.includes('一项完整源代码')&&prompt.includes('未指定时使用标准 C')};
+    const answers=questions.map((q,index)=>({
+     id:q.id,choices:[],texts:['~~~c\r\n'+__programmingCode.replace('return 0','return '+index)+'\r\n~~~'],
+     readable:true,confidence:1,explanation:'synthetic programming fixture'
+    }));
+    const timer=setTimeout(()=>spec.onload({status:200,responseText:JSON.stringify({
+     choices:[{message:{content:JSON.stringify({answers})}}]
+    })}),20);
+    return{abort(){clearTimeout(timer);spec.onabort?.();}};
+   };
+   const form=document.querySelector('#submitForm');
+   form.replaceChildren();
+   for(let index=0;index<8;index++){
+    const suffix=900020+index, question=document.createElement('div');
+    question.id='question'+suffix;
+    question.className='questionLi singleQuesId';
+    question.setAttribute('typename','编程题');
+    question.setAttribute('aria-label','题目 '+(index+1)+'.');
+    question.innerHTML='<h3 class="mark_name">'+(index+1)+'. <span class="colorShallow">(编程题)</span>'+
+     '<p>Write a program: printf a marker and return the requested status.</p>'+
+     '<table class="editor-table"><tr><td>输入</td><td>输出</td></tr><tr><td>3</td><td>示例 9</td></tr></table></h3>'+
+     '<input type="hidden" name="answertype'+suffix+'">'+
+     '<div class="stem_answer"><div class="eidtDiv"><div class="edui-editor"><div class="edui-editor-iframeholder">'+
+     '<iframe id="ueditor_program_'+index+'"></iframe></div></div>'+
+     '<textarea id="answer'+suffix+'" name="answer'+suffix+'"></textarea></div></div>';
+    form.append(question);
+    const iframe=question.querySelector('iframe'),textarea=question.querySelector('textarea'),body=iframe.contentDocument.body;
+    body.contentEditable='true';
+    body.innerHTML=options.programmingDraft&&index===7?'<pre>    human draft</pre>':'<p>&nbsp;</p>';
+    textarea.value=body.innerHTML;
+    UE.instants['program'+index]={
+     key:textarea.id,textarea,iframe,body,
+     setContent(html){__programmingWrites.push(index);body.innerHTML=html;},
+     getContent(){return body.innerHTML;},
+     sync(){textarea.value=options.programmingSyncLoss&&index===0?body.innerHTML.replace('\t',' '):body.innerHTML;}
+    };
+   }
+   return;
+  }
   if(options.rich){
    const question=document.createElement('div');question.id='question900010';question.className='questionLi singleQuesId';
    question.innerHTML='<h3 class="mark_name">3. <span class="colorShallow">填空题</span>按空位作答</h3><div class="stem_answer"></div>';
@@ -43,7 +91,6 @@ async function scenario(name,options={},check){
   }
   const q=document.querySelector('.qtDetail').closest('.questionLi'),hidden=document.createElement('input');hidden.type='hidden';hidden.id='answer'+q.id.slice(8);q.append(hidden);
   for(const row of q.querySelectorAll('.answerBg'))row.onclick=()=>{__counts.choice++;for(const other of q.querySelectorAll('.num_option'))other.classList.remove('check_answer');row.querySelector('.num_option').classList.add('check_answer');hidden.value=row.querySelector('.answer_p').textContent==='对'?'true':'false';};
-  for(const b of document.querySelectorAll('#submitFocus a'))b.onclick=()=>{const isSubmit=b.classList.contains('completeBtn');__counts[isSubmit?'submit':'save']++;if(options.noToast)return;const toast=document.createElement('p');toast.textContent=isSubmit?'提交成功!':'保存成功!';document.body.append(toast);};
  },options);
  await p.addScriptTag({content:bundle});
  const choice=(g,v)=>p.locator(`[data-choice-group="${g}"][data-choice="${v}"]`);
@@ -81,6 +128,45 @@ try{
   if(trigger==='captcha'&&!legacy)assert.match(await p.locator('[data-xxt-verification="waiting"] .xxt-verification-notice').textContent(),/作答当前作业/);
  });
  if(!legacy){
+  await scenario('programming-default-skips-subjective',{programming:true},async p=>{
+   await p.locator('[data-action=start]').click();
+   await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('当前只有主观题'));
+   assert.deepEqual(await p.evaluate(()=>[__counts.models,__programmingWrites.length,__counts.save,__counts.submit]),[0,0,0,0]);
+  });
+  await scenario('programming-preview-examples-and-code',{programming:true},async(p,c)=>{
+   await c('主观题','ai').click();await p.locator('[data-action=solve]').click();
+   await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('第8题'));
+   const result=await p.evaluate(()=>({...__programmingPrompt,writes:__programmingWrites.length,status:document.querySelector('.xxt-status-card pre').textContent}));
+   assert.equal(result.asksForSource,true);
+   assert.equal(result.questions.length,8);
+   assert(result.questions.every(q=>q.type==='essay'&&q.answerFormat==='code'&&q.slots===1&&/输入\s+输出\s+3\s+示例 9/.test(q.text)));
+   assert.match(result.status,/\n\tprintf\("<&>\\n"\);\n    return 7;/);
+   assert(!result.status.includes('~~~'));assert.equal(result.writes,0);
+  });
+  await scenario('programming-fill-native-editors-and-save',{programming:true},async(p,c)=>{
+   await c('主观题','ai').click();await c('作答后','save').click();await p.locator('[data-action=start]').click();
+   await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('暂时保存成功'));
+   assert.deepEqual(await p.evaluate(()=>{
+    const editors=Object.entries(UE.instants).filter(([key])=>key.startsWith('program')).map(([,editor])=>editor);
+    return [__programmingWrites,__counts.save,__counts.submit,editors.every((editor,index)=>{
+     const pre=editor.body.querySelector('pre');
+     return pre?.textContent===__programmingCode.replace('return 0','return '+index)&&editor.textarea.value===editor.body.innerHTML;
+    })];
+   }),[[0,1,2,3,4,5,6,7],1,0,true]);
+   await p.locator('[data-action=homework-review]').click();
+   await p.waitForFunction(()=>document.querySelector('[data-homework-review-result]').textContent.includes('一致8题'));
+   assert.deepEqual(await p.evaluate(()=>[__programmingWrites.length,__counts.save,__counts.submit]),[8,1,0]);
+  });
+  await scenario('programming-preserves-existing-draft',{programming:true,programmingDraft:true},async(p,c)=>{
+   await c('主观题','ai').click();await c('作答后','save').click();await p.locator('[data-action=start]').click();
+   await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('已有作答'));
+   assert.deepEqual(await p.evaluate(()=>[UE.instants.program7.body.textContent,__programmingWrites.length,__counts.save,__counts.submit]),['    human draft',0,0,0]);
+  });
+  await scenario('programming-sync-indent-loss-blocks-finish',{programming:true,programmingSyncLoss:true},async(p,c)=>{
+   await c('主观题','ai').click();await c('作答后','submit').click();await p.locator('[data-action=start]').click();
+   await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('字段未同步'));
+   assert.deepEqual(await p.evaluate(()=>[__programmingWrites,__counts.save,__counts.submit]),[[0],0,0]);
+  });
   await scenario('rich-blanks-fill-native-slot-order',{rich:true},async p=>{await p.locator('[data-action=start]').click();await completed(p);assert.deepEqual(await p.evaluate(()=>__slotWrites),[1,2,3]);assert.deepEqual(await p.evaluate(()=>Object.keys(UE.instants).filter(k=>k.startsWith('slot')).sort().map(k=>UE.instants[k].body.textContent)),['甲；含标点','乙&<','丙']);assert.equal(await p.evaluate(()=>__counts.save+__counts.submit),0);});
   await scenario('rich-blanks-duplicate-label-and-draft-are-protected',{rich:true,duplicate:true},async p=>{await p.locator('[data-action=start]').click();await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('未适配'));assert.deepEqual(await p.evaluate(()=>[__counts.models,__slotWrites.length]),[0,0]);});
   await scenario('rich-blanks-handwritten-draft-is-preserved',{rich:true,slotDraft:true},async p=>{await p.locator('[data-action=start]').click();await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('已有作答'));assert.equal(await p.evaluate(()=>UE.instants.slot2.body.textContent),'人工填答');assert.deepEqual(await p.evaluate(()=>__slotWrites),[]);});

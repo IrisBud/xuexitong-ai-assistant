@@ -3,6 +3,7 @@
     'use strict';
     const compat = root.XxtCompat || (typeof module === 'object' && module.exports ? require('./compat.cjs') : null);
     const catalog = root.XxtModelCatalog || (typeof module === 'object' && module.exports ? require('./models.cjs') : null);
+    const core = root.XxtCodexCore || (typeof module === 'object' && module.exports ? require('./core.cjs') : null);
     const presets = {
         openai: { label: 'OpenAI', protocol: 'responses', baseUrl: 'https://api.openai.com/v1', vision: true },
         claude: { label: 'Claude / Anthropic', protocol: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', vision: true },
@@ -43,7 +44,8 @@
             '严格按题目标识返回：{"answers":[{"id":"题目标识","choices":["A"],"readable":true,"confidence":0.9,"explanation":"简体中文解释"}]}。' +
             '单选和判断选择一项，多选返回全部所选字母。逐题返回，置信度必须真实；无法识别时 readable=false、confidence=0、choices=[]。' +
             'blank填空题和essay简答题返回texts字符串数组，数量严格等于slots，按输入框顺序填写，同时choices=[]。不把解释写进答案。' +
-            'texts是要填写的答案，语言遵循题目明确要求；未明确要求时，英文题用英文作答，中文题用中文作答，翻译题按目标语言。explanation单独用简体中文，不把中文解释代替英文答案。答题语言提示（auto表示由题意判断）：'+JSON.stringify(Object.fromEntries(payload.questions.map(q=>[q.id,root.XxtCodexCore.answerLanguage(q)]))) +
+            'texts是要填写的答案，语言遵循题目明确要求；未明确要求时，英文题用英文作答，中文题用中文作答，翻译题按目标语言。explanation单独用简体中文，不把中文解释代替英文答案。答题语言提示（auto表示由题意判断）：'+JSON.stringify(Object.fromEntries(payload.questions.map(q=>[q.id,core.answerLanguage(q)]))) +
+            core.codeAnswerPrompt(payload.questions) +
             (payload.languageCorrection?'上次文本答案语言不合要求，请重新作答；标为en的题必须输出英文texts，仍返回完整本批答案，不要添加中文译文。':'') +
             (vision ? '截图按图片映射的序号附上，同一图可对应多题，特殊字体以图片为准。图片映射：'+JSON.stringify(payload.imageManifest || []) : '本次仅文字模式，没有截图；如果 obfuscated=true，必须返回 readable=false，不要猜测乱码。') +
             '\n如有历史成绩，请比较历次得分和选择，复核未确认题；保留平台明确判对项。只有总成绩不能推断每题都错。复核要求不同整组候选时，请重新推理，不要重复已失败组合。历史字母已映射至当前选项。' +

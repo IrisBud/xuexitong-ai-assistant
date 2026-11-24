@@ -6,6 +6,15 @@
     const MODES = ['chapter','homework'];
     const normalize = (value = {}) => ({ mode: MODES.includes(value.mode) ? value.mode : 'chapter', subjective: value.subjective === 'ai' ? 'ai' : 'skip', after: ['none','save','submit'].includes(value.after) && (value.after !== 'submit' || value.subjective === 'ai') ? value.after : 'none' });
     const comparable = value => String(value ?? '').normalize('NFC').replace(/\r\n?/g,'\n').replace(/\u200b/g,'').replace(/\s+/g,' ').trim();
+    const codeText = value => {
+        const text = String(value ?? '').replace(/\r\n?/g,'\n');
+        return text.trim()?text.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g,''):'';
+    };
+    function modelCode(value) {
+        const code = codeText(value);
+        const fenced = code.match(/^(```|~~~)[\w#+.-]*[ \t]*\n([\s\S]*?)\n\1[ \t]*$/);
+        return fenced ? codeText(fenced[2]) : code;
+    }
     function answerValue(question, answer) {
         if (!answer || answer.id !== question.id) return null;
         if (['single','multiple','boolean'].includes(question.type)) {
@@ -14,8 +23,9 @@
             return {choices:[...keys].sort()};
         }
         if (['blank','essay'].includes(question.type)) {
-            if (!Array.isArray(answer.texts) || answer.texts.length !== question.slots || answer.texts.some(t=>typeof t!=='string'||!comparable(t))) return null;
-            return {texts:answer.texts.map(comparable)};
+            if (!Array.isArray(answer.texts) || answer.texts.length !== question.slots || answer.texts.some(t=>typeof t!=='string')) return null;
+            const texts=answer.texts.map(question.answerFormat==='code'?modelCode:comparable);
+            return texts.every(text=>text.trim())?{texts}:null;
         }
         return null;
     }
@@ -149,7 +159,7 @@
         const review=make('button','复查AI作答');review.type='button';review.dataset.action='homework-review';
         const result=make('p','尚未复查。复查会重新调用AI，可能产生API费用。');result.dataset.homeworkReviewResult='true';result.setAttribute('role','status');result.setAttribute('aria-live','polite');
         const list=make('ol');list.className='xxt-review-details';list.dataset.homeworkReviewDetails='true';
-        section.append(make('h3','主观题处理'),subjective,make('p','“简答题”也包括计算题、论述题等需要输入文字的主观题。默认只答客观题，保留主观题已有内容。'),make('h3','作答结束后'),after,make('p','不提交：脚本不额外点击保存或提交；平台自身可能自动保存。选择主观题由AI回答后，才能选择直接提交。'),notice,review,result,list,make('p','复查只对比当前填写，不覆盖答案、不保存、不提交。填空和主观题按文字比较；意思相同但写法不同也可能标为不一致。多次一致不代表答案正确。'));
+        section.append(make('h3','主观题处理'),subjective,make('p','“简答题”也包括已适配的编程题、计算题、论述题等主观题。默认只答客观题，保留主观题已有内容。'),make('h3','作答结束后'),after,make('p','不提交：脚本不额外点击保存或提交；平台自身可能自动保存。选择主观题由AI回答后，才能选择直接提交。'),notice,review,result,list,make('p','复查只对比当前填写，不覆盖答案、不保存、不提交。填空和主观题按文字比较。编程题会比较换行和缩进，不判断程序是否等价。多次一致不代表答案正确。'));
         const priorHidden=new Map(chapterNodes.filter(Boolean).map(n=>[n,n.hidden]));
         const routeAction=event=>{
             const action=event.target.closest('[data-action]')?.dataset.action;
@@ -198,7 +208,7 @@
         host.prepend(modeDock);const common=host.querySelector('.xxt-status-card');if(common)common.after(section);else modeDock.after(section);render();
         return {get state(){return {...state};},exam,showReport,cancelReview(change=true){viewSerial++;if(change)onChange();result.textContent='复查已取消，当前填写保持不变。';},destroy(){disposed=true;viewSerial++;onChange();actions?.removeEventListener('click',routeAction,true);for(const [n,h]of priorHidden){n.hidden=h;delete n.dataset.homeworkHidden;}modeDock.remove();section.remove();exam?.section.remove();style.remove();if(actions?.querySelector('[data-action="start"]'))actions.querySelector('[data-action="start"]').textContent=originalStart;if(actions?.querySelector('[data-action="solve"]'))actions.querySelector('[data-action="solve"]').textContent=originalPreview;delete panel.dataset.studyMode;}};
     }
-    const api={normalize,comparable,answerValue,compare,createController,mount};
+    const api={normalize,comparable,codeText,answerValue,compare,createController,mount};
     if(typeof module==='object'&&module.exports)module.exports=api;
     root.XxtHomework=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

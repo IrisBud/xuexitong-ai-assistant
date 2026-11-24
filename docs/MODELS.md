@@ -1,3 +1,20 @@
+# 2026-11-24 · 1.8.7 正式版模型目录复核
+
+重新读取十家服务商登记的 45 个官方入口，并补查 Claude 发布公告、MiMo Chat API 及智谱 GLM-5.4。保留现有 75 个对话 ID、手动填写与调用参数。关联公告与各账号、各地域权限未穷尽，未调用付费模型。
+
+| 服务商 | 本次核对 |
+| --- | --- |
+| OpenAI | 模型目录、更新、弃用和 GPT-6 推理档位。推理参数长页下载超时前已取得正文，另核对模型详情。 [模型目录](https://developers.openai.com/api/docs/models) · [更新](https://developers.openai.com/api/docs/changelog) · [弃用](https://developers.openai.com/api/docs/deprecations) · [推理](https://developers.openai.com/api/docs/guides/reasoning) |
+| Claude | Opus 4.5 已宣布弃用，未列在本脚本快捷目录。现有 5.x 的 API ID 与 effort 映射继续沿用。 [目录](https://platform.claude.com/docs/en/models/overview) · [发布公告](https://platform.claude.com/docs/en/release-notes/overview) · [退役](https://platform.claude.com/docs/en/about-claude/model-deprecations) · [effort](https://platform.claude.com/docs/en/build-with-claude/effort) |
+| Gemini | 目录、更新、弃用和 thinkingLevel/ thinkingBudget 范围，沿用各型号参数与账号限制。 [目录](https://ai.google.dev/gemini-api/docs/models) · [更新](https://ai.google.dev/gemini-api/docs/changelog) · [弃用](https://ai.google.dev/gemini-api/docs/deprecations) · [思考](https://ai.google.dev/gemini-api/docs/thinking) |
+| DeepSeek | 由官方模型目录、更新与 thinking 指南核对可用 ID 和强度。 [模型](https://api-docs.deepseek.com/api/list-models/) · [更新](https://api-docs.deepseek.com/updates/) · [思考](https://api-docs.deepseek.com/guides/thinking_mode/) |
+| 小米 MiMo | 目录和退役公告保持。Chat API 原直连正文过少，使用官方兼容接口正文核对 V2.6、max_completion_tokens、thinking.type。 [模型](https://mimo.mi.com/docs/zh-CN/quick-start/summary/model) · [更新](https://mimo.mi.com/docs/zh-CN/updates/model) · [退役](https://mimo.mi.com/docs/zh-CN/updates/deprecate) · [Chat API](https://mimo.mi.com/docs/en-US/api/chat/openai-api-post) |
+| Kimi | 核对 K3/K2 目录、思考开关和强度，保留账号过渡说明。 [目录](https://platform.kimi.com/docs/models) · [思考](https://platform.kimi.com/docs/guide/use-thinking-models) · [强度](https://platform.kimi.com/docs/guide/use-reasoning-effort) |
+| 智谱 | GLM-5.4 已向 Coding Plan 开放，公开模型 API 尚待开放，暂不加入快捷目录。沿用 GLM-5.3 系列设置。 [国内 5.4](https://docs.bigmodel.cn/cn/guide/models/glm-5.4) · [国际 5.3](https://docs.z.ai/guides/llm/glm-5.3) |
+| 百炼 | 上架公告新增音频对话与打标，超出本目录范围。核对地域、下线公告与已有对话模型的 enable_thinking 设置。 [目录](https://help.aliyun.com/zh/model-studio/models) · [上架](https://help.aliyun.com/zh/model-studio/newly-released-models) · [下线](https://help.aliyun.com/zh/model-studio/model-depreciation) · [思考](https://help.aliyun.com/zh/model-studio/deep-thinking/) |
+| 火山方舟 | 复核模型目录、Seed 思考开关和强度、托管模型参数和发布公告。 [目录](https://docs.volcengine.com/docs/ark/model-list?lang=zh) · [深度思考](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh) · [更新](https://docs.volcengine.com/docs/ark/model-release-announcement?lang=zh) |
+| 硅基流动 | 11 月 23 日公告中的 Xing4.0-29B 下线项未列在本目录。保持现有带组织前缀的 ID 与协议默认设置。 [API](https://docs.siliconflow.cn/docs/api/chat-completions-post) · [公告](https://docs.siliconflow.cn/docs/release-notes/overview) |
+
 # 2026-11-21 · 1.8.6 正式版模型目录复核
 
 本次重新请求十家服务商的 46 个官方入口，保留 75 个对话 ID、手动填写及推理参数。Claude 四个登记入口直连未取得正文，使用下列官方网页复核。MiMo Chat API 独立正文、部分关联退役公告、账号和地域权限未完整核实。未调用付费模型。

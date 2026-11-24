@@ -58,7 +58,11 @@
   const adapter=A.create({doc:document,identity,assertCurrent:guard,policy:settings,readState:readSubmission,writeState:writeSubmission});
   controller=H.createController({adapter,ask,notify,changed:value=>{wasBusy=value;}});
   const action=operation=>async state=>{try{return await operation(state);}catch(error){notify(error?.message||'作业操作未完成，请检查设置后重试。');throw error;}};
-  const callbacks={review:action(async state=>{guard();return controller.review(state);}),run:action(async state=>{if(!XxtManualVerification.requiresManual())manualHold=false;guard();return controller.run(state);}),preview:action(async state=>{guard();const result=await controller.preview(state);notify(result.answers.map(a=>`第${result.questions.find(q=>q.id===a.id)?.number||a.id}题：${(a.texts||a.choices||[]).join('、')}`).join('\n\n'));})};
+  const callbacks={review:action(async state=>{guard();return controller.review(state);}),run:action(async state=>{if(!XxtManualVerification.requiresManual())manualHold=false;guard();return controller.run(state);}),preview:action(async state=>{guard();const result=await controller.preview(state);notify(result.answers.map(a=>{
+   const question=result.questions.find(q=>q.id===a.id);
+   const list=question?.answerFormat==='code'?H.answerValue(question,a)?.texts:a.texts||a.choices;
+   return `第${question?.number||a.id}题：${question?.answerFormat==='code'?'\n':''}${(list||[]).join('、')}`;
+  }).join('\n\n'));})};
   const status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:()=>stop('设置已更改，作业操作已停止；请显式开始。'),onQuietChange:()=>{if(quiet())stop('夜间休息中，作业操作已停止。');},studyControls:true,homeworkCallbacks:callbacks});
   view=status.homeworkUI;
   verificationStatus=status;
