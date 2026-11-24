@@ -46,9 +46,9 @@
    if(/填空题/.test(kind)&&!rows.length&&(richSlots||!richLayout&&fields.length>=1&&fields.length<=20&&!frames.length))type='blank';
    const images=[...(title?.querySelectorAll('img')||[])];
    const visualSources=images.map(img=>img.getAttribute('src')||img.getAttribute('data-original')||img.getAttribute('data-collector-image')||'image');
-   const code=programming&&type==='essay';
-   return{element:node,title,rows,fields,frames,richSlots,question:{id,number,type,text:code?title.innerText.trim():plain(title),options,
-    ...(code?{answerFormat:'code'}:{}),
+   const code=programming&&type==='essay', text=code?title.innerText.trim():plain(title);
+   return{element:node,title,rows,fields,frames,richSlots,question:{id,number,type,text,options,
+    ...(code?{answerFormat:'code',codeLanguage:XxtProgrammingCode.languageFor(text)}:{}),
     ...(['essay','blank'].includes(type)?{slots:richSlots?.length??fields.length}:{}),...(images.length?{requiresVision:true,imageKey:hash(JSON.stringify(visualSources))}:{})}};
   });
  }
@@ -83,7 +83,7 @@
   if(values.some(value=>value!==values[0]))throw Error('第 '+slot.number+' 空的页面显示与保存字段不一致，请人工核对。');
   return values[0];
  }
- function readProgrammingEditor(entry,editor=editorFor(entry)){
+ function readProgrammingEditor(entry,editor=editorFor(entry),expectedLanguage){
   const doc=entry.element.ownerDocument,field=entry.fields[0],frame=entry.frames[0];
   if(!field.form||field.form!==entry.element.closest('form')||
      [field,frame].some(node=>doc.querySelectorAll('#'+CSS.escape(node.id)).length!==1))
@@ -93,17 +93,23 @@
    parsed.innerHTML=String(value||'');
    if(parsed.content.querySelector('img,audio,video,iframe,object,embed,table,hr'))
     throw Error('编程题已有非文本作答，请保留内容并人工检查。');
+   const block=parsed.content.querySelector('pre > code');
+   if(expectedLanguage&&block?.getAttribute('lang')!==expectedLanguage)
+    throw Error('编程题代码块语言未同步，请人工检查。');
    for(const br of parsed.content.querySelectorAll('br'))br.replaceWith('\n');
    for(const block of parsed.content.querySelectorAll('p,div,pre'))block.append('\n');
-   return globalThis.XxtHomework.codeText(parsed.content.textContent);
+   const text=parsed.content.textContent.replace(/^[ \t\u00a0]+/gm,indent=>indent.replace(/\u00a0/g,' '));
+   return XxtProgrammingCode.codeText(text);
   });
   if(values.some(value=>value!==values[0]))
    throw Error('编程题显示或提交字段未同步，请保留现有内容并人工检查。');
   return values[0];
  }
- function writeEditor(editor,value,code=false){
+ function writeEditor(editor,value,language){
   const escaped=value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const html=code?'<pre>'+escaped+'</pre>':'<p>'+escaped.replace(/\r?\n/g,'<br>')+'</p>';
+  const html=language
+   ? '<pre><code lang="'+language+'">'+escaped.replace(/^[ \t]+/gm,indent=>indent.replace(/ /g,'&nbsp;')).replace(/\n/g,'<br>')+'</code></pre>'
+   : '<p>'+escaped.replace(/\r?\n/g,'<br>')+'</p>';
   editor.setContent(html);editor.fireEvent?.('contentChange');editor.sync();
  }
  async function applyRichBlanks(entry,answer,guard){
@@ -170,8 +176,10 @@
      const e=editorFor(entry),code=entry.question.answerFormat==='code';
      if(code){
       const value=globalThis.XxtHomework.answerValue(entry.question,answer).texts[0];
-      if(readProgrammingEditor(entry,e)!==value){writeEditor(e,value,true);guard();}
-      if(readProgrammingEditor(entry,e)!==value)throw Error('编程题代码格式未通过回读，未保存或提交。');
+      const language=XxtProgrammingCode.editorLanguage(entry.question.codeLanguage);
+      const alreadyFilled=readProgrammingEditor(entry,e)===value;
+      if(!alreadyFilled){writeEditor(e,value,language);guard();}
+      if(readProgrammingEditor(entry,e,alreadyFilled?undefined:language)!==value)throw Error('编程题代码格式未通过回读，未保存或提交。');
      }else{
       const value=answer.texts[0];writeEditor(e,value);guard();
       if([e.getContent(),entry.fields[0].value,e.body.innerHTML].some(v=>htmlText(v,doc)!==comparable(value)))throw Error('主观题显示或提交字段未同步，未执行收尾操作。');
@@ -183,7 +191,7 @@
     }else{
      for(let i=0;i<entry.rows.length;i++){guard();const row=entry.rows[i],key=entry.question.options[i].key,want=answer.choices.includes(key),has=choices(entry).includes(key);if(want!==has&&(entry.question.type==='multiple'||want)){if(!visible(row))throw Error('选项不可见，已停止。');row.click();await new Promise(r=>setTimeout(r,80));}}
     }
-    guard();const actual=readEntry(entry),expected=globalThis.XxtHomework.answerValue(entry.question,answer);if(JSON.stringify(globalThis.XxtHomework.answerValue(entry.question,actual))!==JSON.stringify(expected))throw Error('答案未正确写入，未保存或提交。');owned.set(entry.element,JSON.stringify(actual.texts||actual.choices));
+    guard();const actual=readEntry(entry),expected=globalThis.XxtHomework.answerValue(entry.question,answer);if(JSON.stringify(globalThis.XxtHomework.answerValue(entry.question,actual,{readBack:true}))!==JSON.stringify(expected))throw Error('答案未正确写入，未保存或提交。');owned.set(entry.element,JSON.stringify(actual.texts||actual.choices));
    }
   }
   async function finish(kind,{page,guard,signal}){

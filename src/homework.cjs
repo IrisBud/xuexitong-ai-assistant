@@ -3,19 +3,11 @@
  */
 (function (root) {
     'use strict';
+    const programming = root.XxtProgrammingCode || (typeof module==='object'&&module.exports ? require('./programming-code.cjs') : null);
     const MODES = ['chapter','homework'];
     const normalize = (value = {}) => ({ mode: MODES.includes(value.mode) ? value.mode : 'chapter', subjective: value.subjective === 'ai' ? 'ai' : 'skip', after: ['none','save','submit'].includes(value.after) && (value.after !== 'submit' || value.subjective === 'ai') ? value.after : 'none' });
     const comparable = value => String(value ?? '').normalize('NFC').replace(/\r\n?/g,'\n').replace(/\u200b/g,'').replace(/\s+/g,' ').trim();
-    const codeText = value => {
-        const text = String(value ?? '').replace(/\r\n?/g,'\n');
-        return text.trim()?text.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g,''):'';
-    };
-    function modelCode(value) {
-        const code = codeText(value);
-        const fenced = code.match(/^(```|~~~)[\w#+.-]*[ \t]*\n([\s\S]*?)\n\1[ \t]*$/);
-        return fenced ? codeText(fenced[2]) : code;
-    }
-    function answerValue(question, answer) {
+    function answerValue(question, answer, {readBack=false}={}) {
         if (!answer || answer.id !== question.id) return null;
         if (['single','multiple','boolean'].includes(question.type)) {
             const keys=answer.choices;
@@ -24,7 +16,9 @@
         }
         if (['blank','essay'].includes(question.type)) {
             if (!Array.isArray(answer.texts) || answer.texts.length !== question.slots || answer.texts.some(t=>typeof t!=='string')) return null;
-            const texts=answer.texts.map(question.answerFormat==='code'?modelCode:comparable);
+            const texts=question.answerFormat==='code'
+                ? answer.texts.map(text=>readBack?programming.codeText(text):programming.modelCode(text,question.codeLanguage))
+                : answer.texts.map(comparable);
             return texts.every(text=>text.trim())?{texts}:null;
         }
         return null;
@@ -33,7 +27,7 @@
         const result={same:[],different:[],unavailable:[],details:[]};
         for(const q of questions){
             const left=current.filter(a=>a.id===q.id),right=fresh.filter(a=>a.id===q.id);
-            const a=left.length===1?answerValue(q,left[0]):null;
+            const a=left.length===1?answerValue(q,left[0],{readBack:true}):null;
             const b=right.length===1&&right[0].readable!==false&&(right[0].confidence===undefined||right[0].confidence>=0.8)?answerValue(q,right[0]):null;
             const state=!a||!b?'unavailable':JSON.stringify(a)===JSON.stringify(b)?'same':'different';
             result[state].push(q.id);result.details.push({id:q.id,number:q.number||q.id,state,current:a,fresh:b});
@@ -76,6 +70,8 @@
                     notify(`第${round}轮复查：一致${report.same.length}题，不一致${report.different.length}题，无法比较${report.unavailable.length}题。`);
                     return result;
                 }
+                const invalidCode=questions.find(q=>q.answerFormat==='code'&&fresh.some(a=>a.id===q.id&&!answerValue(q,a)));
+                if(invalidCode)throw Error('第 '+invalidCode.number+' 题未返回符合题目语言的源代码，请先预览并复核。');
                 if(questions.some(q=>fresh.filter(a=>a.id===q.id).length!==1||fresh.find(a=>a.id===q.id)?.readable===false||(fresh.find(a=>a.id===q.id)?.confidence!==undefined&&fresh.find(a=>a.id===q.id).confidence<0.8)||!answerValue(q,fresh.find(a=>a.id===q.id))))throw Error('部分题目没有可用答案或置信度不足，本次不写入、不保存、不提交。');
                 guard();await adapter.apply(page,fresh,guard);guard();
                 const written=compare(questions,adapter.read(page),fresh);
@@ -208,7 +204,7 @@
         host.prepend(modeDock);const common=host.querySelector('.xxt-status-card');if(common)common.after(section);else modeDock.after(section);render();
         return {get state(){return {...state};},exam,showReport,cancelReview(change=true){viewSerial++;if(change)onChange();result.textContent='复查已取消，当前填写保持不变。';},destroy(){disposed=true;viewSerial++;onChange();actions?.removeEventListener('click',routeAction,true);for(const [n,h]of priorHidden){n.hidden=h;delete n.dataset.homeworkHidden;}modeDock.remove();section.remove();exam?.section.remove();style.remove();if(actions?.querySelector('[data-action="start"]'))actions.querySelector('[data-action="start"]').textContent=originalStart;if(actions?.querySelector('[data-action="solve"]'))actions.querySelector('[data-action="solve"]').textContent=originalPreview;delete panel.dataset.studyMode;}};
     }
-    const api={normalize,comparable,codeText,answerValue,compare,createController,mount};
+    const api={normalize,comparable,answerValue,compare,createController,mount};
     if(typeof module==='object'&&module.exports)module.exports=api;
     root.XxtHomework=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

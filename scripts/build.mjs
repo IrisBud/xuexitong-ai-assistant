@@ -31,7 +31,7 @@ const header = `// ==UserScript==
 
 `;
 const files = ['vendor/jquery-3.6.0.min.js','vendor/html2canvas-1.4.1.min.js','src/core.cjs','src/retry.cjs','src/fonts.js','src/dom.js','src/capture.js','src/documents.js','src/manual-verification.js','src/reading.js','src/page-tasks.js','src/interruptions.js','src/video-lines.js','src/video-quiz.js','src/models.cjs','src/locator.cjs','src/run-ledger.cjs','src/dispatch.cjs','src/diagnostics.cjs','src/profiles.cjs','src/personas.cjs','src/ai.js','src/discussion.js','src/short-answer.js','src/updates.cjs','src/rate-notice.js','src/force-rate.js','src/theme.js','src/audio.cjs','src/workflow.js','src/player.js'];
-files.splice(files.indexOf('src/theme.js'),0,'src/homework.cjs','src/saved-quizzes.cjs','src/panel-layout.js');
+files.splice(files.indexOf('src/theme.js'),0,'src/programming-code.cjs','src/homework.cjs','src/saved-quizzes.cjs','src/panel-layout.js');
 files.splice(files.indexOf('src/theme.js'),0,'src/panel-motion.js');
 files.splice(files.indexOf('src/theme.js'),0,'vendor/exam-pdf/pdf-text.js','src/exam-knowledge.js','src/exam-ui.js');
 files.splice(files.indexOf('src/workflow.js'),0,'src/homework-dom.js','src/homework-runtime.js');

@@ -31,14 +31,15 @@ async function scenario(name,options={},check){
   if(options.programming){
    window.__programmingWrites=[];
    window.__programmingPrompt=null;
-   window.__programmingCode='#include <stdio.h>\n\nint main(void) {\n\tprintf("<&>\\n");\n    return 0;\n}';
+   window.__programmingSource='#include <stdio.h>\nint main(void){printf("<&>\\n");return 0;}';
+   window.__programmingCode='#include <stdio.h>\nint main(void) {\n    printf("<&>\\n");\n    return 0;\n}';
    window.GM_xmlhttpRequest=spec=>{
     __counts.models++;
     const prompt=JSON.parse(spec.data).messages[0].content;
     const questions=JSON.parse(prompt.split('\n题目：')[1].split('\n之前的平台反馈')[0]);
     __programmingPrompt={questions,asksForSource:prompt.includes('一项完整源代码')&&prompt.includes('未指定时使用标准 C')};
     const answers=questions.map((q,index)=>({
-     id:q.id,choices:[],texts:['~~~c\r\n'+__programmingCode.replace('return 0','return '+index)+'\r\n~~~'],
+     id:q.id,choices:[],texts:[options.programmingWrongLanguage&&index===0?'#!/usr/bin/env python3\nprint(123)':'~~~c\r\n'+__programmingSource.replace('return 0','return '+index)+'\r\n~~~'],
      readable:true,confidence:1,explanation:'synthetic programming fixture'
     }));
     const timer=setTimeout(()=>spec.onload({status:200,responseText:JSON.stringify({
@@ -70,7 +71,7 @@ async function scenario(name,options={},check){
      key:textarea.id,textarea,iframe,body,
      setContent(html){__programmingWrites.push(index);body.innerHTML=html;},
      getContent(){return body.innerHTML;},
-     sync(){textarea.value=options.programmingSyncLoss&&index===0?body.innerHTML.replace('\t',' '):body.innerHTML;}
+     sync(){textarea.value=options.programmingSyncLoss&&index===0?body.innerHTML.replace('&nbsp;',''):body.innerHTML;}
     };
    }
    return;
@@ -139,8 +140,8 @@ try{
    const result=await p.evaluate(()=>({...__programmingPrompt,writes:__programmingWrites.length,status:document.querySelector('.xxt-status-card pre').textContent}));
    assert.equal(result.asksForSource,true);
    assert.equal(result.questions.length,8);
-   assert(result.questions.every(q=>q.type==='essay'&&q.answerFormat==='code'&&q.slots===1&&/输入\s+输出\s+3\s+示例 9/.test(q.text)));
-   assert.match(result.status,/\n\tprintf\("<&>\\n"\);\n    return 7;/);
+   assert(result.questions.every(q=>q.type==='essay'&&q.answerFormat==='code'&&q.codeLanguage==='C'&&q.slots===1&&/输入\s+输出\s+3\s+示例 9/.test(q.text)));
+   assert.match(result.status,/\n    printf\("<&>\\n"\);\n    return 7;/);
    assert(!result.status.includes('~~~'));assert.equal(result.writes,0);
   });
   await scenario('programming-fill-native-editors-and-save',{programming:true},async(p,c)=>{
@@ -149,8 +150,8 @@ try{
    assert.deepEqual(await p.evaluate(()=>{
     const editors=Object.entries(UE.instants).filter(([key])=>key.startsWith('program')).map(([,editor])=>editor);
     return [__programmingWrites,__counts.save,__counts.submit,editors.every((editor,index)=>{
-     const pre=editor.body.querySelector('pre');
-     return pre?.textContent===__programmingCode.replace('return 0','return '+index)&&editor.textarea.value===editor.body.innerHTML;
+     const code=editor.body.querySelector('pre > code[lang="C/C++"]');
+     return code?.innerText.replaceAll('\u00a0',' ')===__programmingCode.replace('return 0','return '+index)&&editor.textarea.value===editor.body.innerHTML;
     })];
    }),[[0,1,2,3,4,5,6,7],1,0,true]);
    await p.locator('[data-action=homework-review]').click();
@@ -161,6 +162,11 @@ try{
    await c('主观题','ai').click();await c('作答后','save').click();await p.locator('[data-action=start]').click();
    await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('已有作答'));
    assert.deepEqual(await p.evaluate(()=>[UE.instants.program7.body.textContent,__programmingWrites.length,__counts.save,__counts.submit]),['    human draft',0,0,0]);
+  });
+  await scenario('programming-wrong-language-blocks-writing',{programming:true,programmingWrongLanguage:true},async(p,c)=>{
+   await c('主观题','ai').click();await c('作答后','submit').click();await p.locator('[data-action=start]').click();
+   await p.waitForFunction(()=>document.querySelector('.xxt-status-card pre').textContent.includes('第 1 题未返回符合题目语言的源代码'));
+   assert.deepEqual(await p.evaluate(()=>[__programmingWrites.length,__counts.save,__counts.submit]),[0,0,0]);
   });
   await scenario('programming-sync-indent-loss-blocks-finish',{programming:true,programmingSyncLoss:true},async(p,c)=>{
    await c('主观题','ai').click();await c('作答后','submit').click();await p.locator('[data-action=start]').click();

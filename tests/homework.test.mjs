@@ -1,6 +1,26 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import H from '../src/homework.cjs';
+import P from '../src/programming-code.cjs';
+test('compact C splits independent statements and preserves literals and for headers',()=>{
+ const src='#include <stdio.h>\nint main(){for(int i=0;i<2;i++){printf("};<>&\\n");}return 0;}';
+ assert.equal(P.modelCode(src),'#include <stdio.h>\nint main() {\n    for(int i=0;i<2;i++) {\n        printf("};<>&\\n");\n    }\n    return 0;\n}');
+});
+test('C++ formatter preserves macro continuations, raw strings and digit separators',()=>{
+ const src='#define STEP(i) do { (i)++; \\\n  (i)++; } while (0)\nint main(){auto s=R"x(\";{}\\)x";long n=1\'000;STEP(n);/* x{}; */return 0;}';
+ const result=P.modelCode(src,'C++');
+ assert(result.startsWith('#define STEP(i) do { (i)++; \\\n  (i)++; } while (0)\n'));
+ assert(result.includes('R"x(\";{}\\)x"'));
+ assert(result.includes("1'000;\n    STEP"));
+ assert(result.includes('/* x{}; */'));
+});
+test('programming output respects the requested language and catches conflicting model answers',()=>{
+ assert.equal(P.editorLanguage(P.languageFor('请用 C++ 编写')), 'C/C++');
+ assert.equal(P.editorLanguage(P.languageFor('请用 Python 3 编写')), 'Python');
+ assert.equal(P.modelCode('~~~python\nprint(1)\n~~~','C'),'');
+ assert.equal(P.modelCode('def f():\n    print("{};")','C'),'');
+ assert.equal(P.modelCode('~~~python\nprint(1)\n~~~','Python'),'print(1)');
+});
 const qs=[{id:'q1',number:'1',type:'single',text:'fixture',options:[{key:'A'},{key:'B'}]},{id:'q2',number:'2',type:'essay',slots:1,text:'fixture essay',options:[]}];
 const answers=[{id:'q1',choices:['A'],readable:true,confidence:1},{id:'q2',texts:['示例文字'],readable:true,confidence:1}];
 const fixture=(options={})=>{

@@ -153,7 +153,7 @@
     }
     function codeAnswerPrompt(questions) {
         return questions.some(q=>q.answerFormat==='code')
-            ? 'answerFormat为code的编程题按题干或代码模板指定的语言作答，未指定时使用标准 C。texts只包含一项完整源代码。保留换行、缩进和字符串转义，直接按示例输入输出要求作答，不添加Markdown围栏或开头说明。'
+            ? '编程题严格使用每题 codeLanguage 指定的语言，分别解答该题 ID 对应的题干和示例，禁止用 Python 代替 C/C++。未指定时使用标准 C。texts 只包含一项完整源代码。头文件每行一个，语句和代码块清楚分行，块内用 4 个空格缩进。保留字符串转义，不添加 Markdown 围栏、开头说明或示例未要求的提示文字。'
             : '';
     }
     function answerLanguage(q){

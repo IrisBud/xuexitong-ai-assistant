@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通自动化脚本（支持接入各种主流AI模型api）
 // @namespace    xuexitong-ai-assistant.public
-// @version      1.8.7
+// @version      1.8.8
 // @description  视频、文献与学习练习辅助；自配 AI API；不含任何密钥
 // @supportURL   https://github.com/IrisBud/xuexitong-ai-assistant/issues
 // @updateURL    https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js
@@ -22,7 +22,7 @@
 // ==/UserScript==
 
 (() => { const module = undefined, exports = undefined, define = undefined;
-globalThis.XxtRelease = {"version":"1.8.7","date":"2026-11-24","channel":"stable","changes":["独立作业支持 UEditor 编程题，读取示例表格，预览与填写保留代码换行和缩进。","沿用主观题开关，保留已有作答。填写后核对编辑器和作答字段。"]};
+globalThis.XxtRelease = {"version":"1.8.8","date":"2026-11-25","channel":"stable","changes":["作业的 C/C++ 编程题改为写入原生 C/C++ 代码块，紧凑代码自动分行、缩进。","预览与填写统一排版。C/C++ 题收到明显错用语言的回复时提示复核，保留已有作答。"]};
 /* Exact origins approved in the script manager's private storage, never by page messages. */
 (function (root) {
     'use strict';
@@ -4218,7 +4218,7 @@ return {Typr,md5:this.md5};
     }
     function codeAnswerPrompt(questions) {
         return questions.some(q=>q.answerFormat==='code')
-            ? 'answerFormat为code的编程题按题干或代码模板指定的语言作答，未指定时使用标准 C。texts只包含一项完整源代码。保留换行、缩进和字符串转义，直接按示例输入输出要求作答，不添加Markdown围栏或开头说明。'
+            ? '编程题严格使用每题 codeLanguage 指定的语言，分别解答该题 ID 对应的题干和示例，禁止用 Python 代替 C/C++。未指定时使用标准 C。texts 只包含一项完整源代码。头文件每行一个，语句和代码块清楚分行，块内用 4 个空格缩进。保留字符串转义，不添加 Markdown 围栏、开头说明或示例未要求的提示文字。'
             : '';
     }
     function answerLanguage(q){
@@ -5769,7 +5769,7 @@ return {Typr,md5:this.md5};
 /* Official model catalog. Refresh sources and capabilities before every release. */
 (function (root) {
     'use strict';
-    const verifiedAt = '2026-11-24', release = '1.8.7';
+    const verifiedAt = '2026-11-25', release = '1.8.8';
     const rows = (ids, profile = '', vision = null) => ids.map(id => ({ id, profile, vision }));
     const providers = {
         openai: { sources: ['https://developers.openai.com/api/docs/models','https://developers.openai.com/api/docs/changelog','https://developers.openai.com/api/docs/deprecations','https://developers.openai.com/api/docs/guides/latest-model','https://developers.openai.com/api/docs/guides/reasoning','https://developers.openai.com/api/docs/models/gpt-6.2-astra','https://developers.openai.com/api/docs/models/gpt-6.2-sol','https://developers.openai.com/api/docs/models/gpt-6-sol','https://developers.openai.com/api/docs/models/gpt-6.1-terra'], models: rows(['gpt-6.2-astra','gpt-6.2-sol','gpt-6-astra','gpt-6.1-sol'], 'openai', true).concat(rows(['gpt-6.1-terra','gpt-6-sol','gpt-6-luna'], 'openai-none', true)) },
@@ -7231,24 +7231,107 @@ return {Typr,md5:this.md5};
     globalThis.XxtForceRate = { create };
 })();
 
+/* Formatting for source code in standalone homework answers. */
+(function (root) {
+    'use strict';
+    const languages = [
+        [/\bC\s*\+\+/i, 'C++', 'C/C++'],
+        [/\bPython(?:\s*3)?\b/i, 'Python', 'Python'],
+        [/\bJavaScript\b/i, 'JavaScript', 'Javascript'],
+        [/\bJava\b/i, 'Java', 'Java'],
+        [/\bC\s*#/i, 'C#', 'C#'],
+        [/\b(?:Bash|Shell)\b/i, 'Bash', 'Bash/Shell'],
+        [/\bPHP\b/i, 'PHP', 'Php'],
+        [/\bRuby\b/i, 'Ruby', 'Ruby'],
+        [/\bPerl\b/i, 'Perl', 'Perl'],
+        [/\bSQL\b/i, 'SQL', 'Sql'],
+        [/\bTypeScript\b/i, 'TypeScript', 'Plain Text'],
+        [/\bRust\b/i, 'Rust', 'Plain Text'],
+        [/\bGo\s*(?:语言|编程)|\bGolang\b/i, 'Go', 'Plain Text'],
+        [/\bKotlin\b/i, 'Kotlin', 'Plain Text'],
+        [/\bLua\b/i, 'Lua', 'Plain Text']
+    ];
+    const languageFor = stem => languages.find(([pattern])=>pattern.test(stem))?.[1] ?? 'C';
+    const editorLanguage = language => languages.find(([, name])=>name===language)?.[2] ?? 'C/C++';
+    const codeText = value => {
+        const text = String(value ?? '').replace(/\r\n?/g,'\n');
+        return text.trim()?text.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g,''):'';
+    };
+
+    // Treat C/C++ literals, comments and preprocessor lines as opaque tokens.
+    const tokens = /(^[ \t]*#(?:\\\n|[^\n])*)|(?:u8|u|U|L)?R"([^\s()\\]{0,16})\([\s\S]*?\)\2"|"(?:\\[\s\S]|[^"\\])*"|\b\d(?:[\w.]|'[\w])*|'(?:\\[\s\S]|[^'\\])*'|\/\/(?:\\\n|[^\n])*|\/\*[\s\S]*?\*\/|\\\n|\n|[{}();\[\]]/gm;
+    function formatC(source) {
+        if(/\?\?\/|<%|%>|%:/.test(source))return source;
+        const lines = [], blocks = [];
+        let line = '', depth = 0, previous = 0;
+        const append = text => {
+            if(!line)text=text.replace(/^[ \t]+/,'');
+            if(!text)return;
+            if(!line)line='    '.repeat(blocks.length);
+            line+=text;
+        };
+        const flush = () => {
+            if(line)lines.push(line);
+            line='';
+        };
+        for(const match of source.matchAll(tokens)){
+            const [token, directive] = match;
+            const end = match.index + token.length;
+            append(source.slice(previous,match.index));
+            previous=end;
+            if(directive){flush();lines.push(token);continue;}
+            if(token==='\\\n')return source;
+            if(token==='\n'){
+                if(line)flush();
+                else if(source[match.index-1]==='\n'&&lines.at(-1)!=='')lines.push('');
+                continue;
+            }
+            if(token==='}'){
+                flush();blocks.pop();append(token);
+                if(/^(?:else|catch)\b/.test(source.slice(end)))append(' ');
+                if(!/^\s*(?:[;,)\]]|else\b|catch\b)/.test(source.slice(end)))flush();
+                continue;
+            }
+            const followsStatement=token.startsWith('/*')&&/;[ \t]*$/.test(line);
+            if(token==='{'&&line&&!/\s$/.test(line))append(' ');
+            append(token);
+            if(followsStatement)flush();
+            if(token==='('||token==='[')depth++;
+            if(token===')'||token===']')depth--;
+            if(token==='{'){flush();blocks.push(depth);}
+            if(token===';'&&depth===(blocks.at(-1)??0)&&!/^[ \t]*\/[/*]/.test(source.slice(end)))flush();
+        }
+        append(source.slice(previous));flush();
+        return codeText(lines.join('\n'));
+    }
+
+    function modelCode(value, language='C') {
+        const text = codeText(value);
+        const fence = text.match(/^(```|~~~)([\w#+./-]*)[ \t]*\n([\s\S]*?)\n\1[ \t]*$/);
+        const code = fence ? codeText(fence[3]) : text;
+        if(editorLanguage(language)!=='C/C++')return code;
+        if(fence?.[2]&&!/^(?:c|c\+\+|cc|cpp|cxx|c\/c\+\+|text|plaintext)$/i.test(fence[2]))return '';
+        const shape = code.replace(tokens, (token,directive) =>
+            directive || /^[{}();\[\]\n]$/.test(token) ? token : token.replace(/[^\n]/g,' '));
+        if(/^[ \t]*(?:#![^\n]*\bpython\d*|from[ \t]+\S+[ \t]+import\b|(?:async[ \t]+)?def[ \t]+\w+[ \t]*\(|(?:public[ \t]+)?class[ \t]+\w+[^\n{]*:[ \t]*$|public[ \t]+static[ \t]+void[ \t]+main\b)/m.test(shape)||
+           !/[;{}]|^[ \t]*#[ \t]*\w+/m.test(shape))return '';
+        return formatC(code);
+    }
+    const api = {languageFor,editorLanguage,codeText,modelCode};
+    if(typeof module==='object'&&module.exports)module.exports=api;
+    root.XxtProgrammingCode=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
 /* Homework policy/UI/controller. The real DOM adapter must be supplied after
  * user-selected page samples are checked. No speculative platform selectors.
  */
 (function (root) {
     'use strict';
+    const programming = root.XxtProgrammingCode || (typeof module==='object'&&module.exports ? require('./programming-code.cjs') : null);
     const MODES = ['chapter','homework'];
     const normalize = (value = {}) => ({ mode: MODES.includes(value.mode) ? value.mode : 'chapter', subjective: value.subjective === 'ai' ? 'ai' : 'skip', after: ['none','save','submit'].includes(value.after) && (value.after !== 'submit' || value.subjective === 'ai') ? value.after : 'none' });
     const comparable = value => String(value ?? '').normalize('NFC').replace(/\r\n?/g,'\n').replace(/\u200b/g,'').replace(/\s+/g,' ').trim();
-    const codeText = value => {
-        const text = String(value ?? '').replace(/\r\n?/g,'\n');
-        return text.trim()?text.replace(/^(?:[ \t]*\n)+|(?:\n[ \t]*)+$/g,''):'';
-    };
-    function modelCode(value) {
-        const code = codeText(value);
-        const fenced = code.match(/^(```|~~~)[\w#+.-]*[ \t]*\n([\s\S]*?)\n\1[ \t]*$/);
-        return fenced ? codeText(fenced[2]) : code;
-    }
-    function answerValue(question, answer) {
+    function answerValue(question, answer, {readBack=false}={}) {
         if (!answer || answer.id !== question.id) return null;
         if (['single','multiple','boolean'].includes(question.type)) {
             const keys=answer.choices;
@@ -7257,7 +7340,9 @@ return {Typr,md5:this.md5};
         }
         if (['blank','essay'].includes(question.type)) {
             if (!Array.isArray(answer.texts) || answer.texts.length !== question.slots || answer.texts.some(t=>typeof t!=='string')) return null;
-            const texts=answer.texts.map(question.answerFormat==='code'?modelCode:comparable);
+            const texts=question.answerFormat==='code'
+                ? answer.texts.map(text=>readBack?programming.codeText(text):programming.modelCode(text,question.codeLanguage))
+                : answer.texts.map(comparable);
             return texts.every(text=>text.trim())?{texts}:null;
         }
         return null;
@@ -7266,7 +7351,7 @@ return {Typr,md5:this.md5};
         const result={same:[],different:[],unavailable:[],details:[]};
         for(const q of questions){
             const left=current.filter(a=>a.id===q.id),right=fresh.filter(a=>a.id===q.id);
-            const a=left.length===1?answerValue(q,left[0]):null;
+            const a=left.length===1?answerValue(q,left[0],{readBack:true}):null;
             const b=right.length===1&&right[0].readable!==false&&(right[0].confidence===undefined||right[0].confidence>=0.8)?answerValue(q,right[0]):null;
             const state=!a||!b?'unavailable':JSON.stringify(a)===JSON.stringify(b)?'same':'different';
             result[state].push(q.id);result.details.push({id:q.id,number:q.number||q.id,state,current:a,fresh:b});
@@ -7309,6 +7394,8 @@ return {Typr,md5:this.md5};
                     notify(`第${round}轮复查：一致${report.same.length}题，不一致${report.different.length}题，无法比较${report.unavailable.length}题。`);
                     return result;
                 }
+                const invalidCode=questions.find(q=>q.answerFormat==='code'&&fresh.some(a=>a.id===q.id&&!answerValue(q,a)));
+                if(invalidCode)throw Error('第 '+invalidCode.number+' 题未返回符合题目语言的源代码，请先预览并复核。');
                 if(questions.some(q=>fresh.filter(a=>a.id===q.id).length!==1||fresh.find(a=>a.id===q.id)?.readable===false||(fresh.find(a=>a.id===q.id)?.confidence!==undefined&&fresh.find(a=>a.id===q.id).confidence<0.8)||!answerValue(q,fresh.find(a=>a.id===q.id))))throw Error('部分题目没有可用答案或置信度不足，本次不写入、不保存、不提交。');
                 guard();await adapter.apply(page,fresh,guard);guard();
                 const written=compare(questions,adapter.read(page),fresh);
@@ -7441,7 +7528,7 @@ return {Typr,md5:this.md5};
         host.prepend(modeDock);const common=host.querySelector('.xxt-status-card');if(common)common.after(section);else modeDock.after(section);render();
         return {get state(){return {...state};},exam,showReport,cancelReview(change=true){viewSerial++;if(change)onChange();result.textContent='复查已取消，当前填写保持不变。';},destroy(){disposed=true;viewSerial++;onChange();actions?.removeEventListener('click',routeAction,true);for(const [n,h]of priorHidden){n.hidden=h;delete n.dataset.homeworkHidden;}modeDock.remove();section.remove();exam?.section.remove();style.remove();if(actions?.querySelector('[data-action="start"]'))actions.querySelector('[data-action="start"]').textContent=originalStart;if(actions?.querySelector('[data-action="solve"]'))actions.querySelector('[data-action="solve"]').textContent=originalPreview;delete panel.dataset.studyMode;}};
     }
-    const api={normalize,comparable,codeText,answerValue,compare,createController,mount};
+    const api={normalize,comparable,answerValue,compare,createController,mount};
     if(typeof module==='object'&&module.exports)module.exports=api;
     root.XxtHomework=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
@@ -8717,9 +8804,9 @@ startxref
    if(/填空题/.test(kind)&&!rows.length&&(richSlots||!richLayout&&fields.length>=1&&fields.length<=20&&!frames.length))type='blank';
    const images=[...(title?.querySelectorAll('img')||[])];
    const visualSources=images.map(img=>img.getAttribute('src')||img.getAttribute('data-original')||img.getAttribute('data-collector-image')||'image');
-   const code=programming&&type==='essay';
-   return{element:node,title,rows,fields,frames,richSlots,question:{id,number,type,text:code?title.innerText.trim():plain(title),options,
-    ...(code?{answerFormat:'code'}:{}),
+   const code=programming&&type==='essay', text=code?title.innerText.trim():plain(title);
+   return{element:node,title,rows,fields,frames,richSlots,question:{id,number,type,text,options,
+    ...(code?{answerFormat:'code',codeLanguage:XxtProgrammingCode.languageFor(text)}:{}),
     ...(['essay','blank'].includes(type)?{slots:richSlots?.length??fields.length}:{}),...(images.length?{requiresVision:true,imageKey:hash(JSON.stringify(visualSources))}:{})}};
   });
  }
@@ -8754,7 +8841,7 @@ startxref
   if(values.some(value=>value!==values[0]))throw Error('第 '+slot.number+' 空的页面显示与保存字段不一致，请人工核对。');
   return values[0];
  }
- function readProgrammingEditor(entry,editor=editorFor(entry)){
+ function readProgrammingEditor(entry,editor=editorFor(entry),expectedLanguage){
   const doc=entry.element.ownerDocument,field=entry.fields[0],frame=entry.frames[0];
   if(!field.form||field.form!==entry.element.closest('form')||
      [field,frame].some(node=>doc.querySelectorAll('#'+CSS.escape(node.id)).length!==1))
@@ -8764,17 +8851,23 @@ startxref
    parsed.innerHTML=String(value||'');
    if(parsed.content.querySelector('img,audio,video,iframe,object,embed,table,hr'))
     throw Error('编程题已有非文本作答，请保留内容并人工检查。');
+   const block=parsed.content.querySelector('pre > code');
+   if(expectedLanguage&&block?.getAttribute('lang')!==expectedLanguage)
+    throw Error('编程题代码块语言未同步，请人工检查。');
    for(const br of parsed.content.querySelectorAll('br'))br.replaceWith('\n');
    for(const block of parsed.content.querySelectorAll('p,div,pre'))block.append('\n');
-   return globalThis.XxtHomework.codeText(parsed.content.textContent);
+   const text=parsed.content.textContent.replace(/^[ \t\u00a0]+/gm,indent=>indent.replace(/\u00a0/g,' '));
+   return XxtProgrammingCode.codeText(text);
   });
   if(values.some(value=>value!==values[0]))
    throw Error('编程题显示或提交字段未同步，请保留现有内容并人工检查。');
   return values[0];
  }
- function writeEditor(editor,value,code=false){
+ function writeEditor(editor,value,language){
   const escaped=value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const html=code?'<pre>'+escaped+'</pre>':'<p>'+escaped.replace(/\r?\n/g,'<br>')+'</p>';
+  const html=language
+   ? '<pre><code lang="'+language+'">'+escaped.replace(/^[ \t]+/gm,indent=>indent.replace(/ /g,'&nbsp;')).replace(/\n/g,'<br>')+'</code></pre>'
+   : '<p>'+escaped.replace(/\r?\n/g,'<br>')+'</p>';
   editor.setContent(html);editor.fireEvent?.('contentChange');editor.sync();
  }
  async function applyRichBlanks(entry,answer,guard){
@@ -8841,8 +8934,10 @@ startxref
      const e=editorFor(entry),code=entry.question.answerFormat==='code';
      if(code){
       const value=globalThis.XxtHomework.answerValue(entry.question,answer).texts[0];
-      if(readProgrammingEditor(entry,e)!==value){writeEditor(e,value,true);guard();}
-      if(readProgrammingEditor(entry,e)!==value)throw Error('编程题代码格式未通过回读，未保存或提交。');
+      const language=XxtProgrammingCode.editorLanguage(entry.question.codeLanguage);
+      const alreadyFilled=readProgrammingEditor(entry,e)===value;
+      if(!alreadyFilled){writeEditor(e,value,language);guard();}
+      if(readProgrammingEditor(entry,e,alreadyFilled?undefined:language)!==value)throw Error('编程题代码格式未通过回读，未保存或提交。');
      }else{
       const value=answer.texts[0];writeEditor(e,value);guard();
       if([e.getContent(),entry.fields[0].value,e.body.innerHTML].some(v=>htmlText(v,doc)!==comparable(value)))throw Error('主观题显示或提交字段未同步，未执行收尾操作。');
@@ -8854,7 +8949,7 @@ startxref
     }else{
      for(let i=0;i<entry.rows.length;i++){guard();const row=entry.rows[i],key=entry.question.options[i].key,want=answer.choices.includes(key),has=choices(entry).includes(key);if(want!==has&&(entry.question.type==='multiple'||want)){if(!visible(row))throw Error('选项不可见，已停止。');row.click();await new Promise(r=>setTimeout(r,80));}}
     }
-    guard();const actual=readEntry(entry),expected=globalThis.XxtHomework.answerValue(entry.question,answer);if(JSON.stringify(globalThis.XxtHomework.answerValue(entry.question,actual))!==JSON.stringify(expected))throw Error('答案未正确写入，未保存或提交。');owned.set(entry.element,JSON.stringify(actual.texts||actual.choices));
+    guard();const actual=readEntry(entry),expected=globalThis.XxtHomework.answerValue(entry.question,answer);if(JSON.stringify(globalThis.XxtHomework.answerValue(entry.question,actual,{readBack:true}))!==JSON.stringify(expected))throw Error('答案未正确写入，未保存或提交。');owned.set(entry.element,JSON.stringify(actual.texts||actual.choices));
    }
   }
   async function finish(kind,{page,guard,signal}){
@@ -8946,7 +9041,7 @@ startxref
   const action=operation=>async state=>{try{return await operation(state);}catch(error){notify(error?.message||'作业操作未完成，请检查设置后重试。');throw error;}};
   const callbacks={review:action(async state=>{guard();return controller.review(state);}),run:action(async state=>{if(!XxtManualVerification.requiresManual())manualHold=false;guard();return controller.run(state);}),preview:action(async state=>{guard();const result=await controller.preview(state);notify(result.answers.map(a=>{
    const question=result.questions.find(q=>q.id===a.id);
-   const list=question?.answerFormat==='code'?H.answerValue(question,a)?.texts:a.texts||a.choices;
+   const list=question?.answerFormat==='code'?H.answerValue(question,a)?.texts||['AI 未返回符合题目语言的源代码。']:a.texts||a.choices;
    return `第${question?.number||a.id}题：${question?.answerFormat==='code'?'\n':''}${(list||[]).join('、')}`;
   }).join('\n\n'));})};
   const status=XxtAssistantTheme.decorate(panel,{title,actions,output,details,playbackRate:1,onRateChange:()=>{},muted:false,onMutedChange:()=>{},onAiChange:()=>stop('设置已更改，作业操作已停止；请显式开始。'),onQuietChange:()=>{if(quiet())stop('夜间休息中，作业操作已停止。');},studyControls:true,homeworkCallbacks:callbacks});
