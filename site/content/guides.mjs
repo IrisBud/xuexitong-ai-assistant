@@ -9,8 +9,33 @@ export const guides = [
       {id: 'install', title: '安装学习助手', html: `<p>打开<a href="https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js">脚本安装地址</a>，等油猴弹出确认页，再点“安装”或“更新”。如果只是打开了代码页面，没有出现油猴确认页，用下面的备用方法。</p><details><summary>安装按钮打不开：用 ZIP 覆盖安装</summary><ol><li>从<a href="https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest">最新正式版</a>下载源码 ZIP 并解压。</li><li>用记事本打开 <code>dist/xuexitong-ai-assistant.user.js</code>，按 Ctrl+A、Ctrl+C 复制全部内容。</li><li>首次安装：油猴图标 → 添加新脚本 → 全选替换默认代码 → Ctrl+S 保存。已有脚本：进入原脚本编辑页，替换全部代码后保存。</li></ol><p>源码 ZIP 不是油猴备份包，不要用“导入备份”安装。更新时保留原脚本，避免丢掉设置。</p></details><p>只启用一份控制同一课程的脚本。以前装过 BG、FACE、PREVIEW 等测试脚本的，先把它们停掉。</p>`},
       {id: 'where', title: '进入一条具体小节', html: `<ol><li>打开学习通，进入自己的课程。</li><li>点击“章节”，再点击“1.1”“1.2”这样的小节名称。</li><li>正文出现视频、文档或测验后，查看右下角的“学习助手”。安装前就打开的页面，需要刷新。</li></ol><p>课程首页和章节目录没有学习面板。大章旁的箭头只负责展开目录，要点击里面的小节名称。</p><figure><img src="../assets/chapter-directory.png" alt="章节目录中可点击的具体小节名称" loading="lazy"><figcaption>先点具体小节，进入正文。</figcaption></figure><figure><img src="../assets/chapter-study.png" alt="具体小节学习页及右下角学习助手的位置" loading="lazy"><figcaption>学习页的面板位置示例，图片中的版本仅作入口示意。</figcaption></figure>`},
       {id: 'no-ai', title: '只看视频、读文档', html: `<p>在面板选择<strong>不接入 AI</strong>，然后点<strong>开始自动</strong>。不用填 Key，也不会发送模型请求。</p><p>这个模式处理音视频和已识别的阅读任务。遇到需要答题的内容，会按当前处理规则记录和接续；需要最后查看待复核项。</p><p>运行时让课程标签保持在前台，电脑不要休眠。具体规则见<a href="./media.html">音视频和阅读</a>。</p>`},
-      {id: 'with-ai', title: '需要 AI 辅助答题', html: `<ol><li>打开面板的“接口”区，选择接入 AI。</li><li>添加服务商、地址、模型和自己的 API Key，选择文字或图片用途，保存。</li><li>点“测试 AI”，确认对应用途通过，再点“开始自动”。</li></ol><p>文字题和图片题可以分别配置。不会填接口时，从<a href="./ai.html">接入 AI</a>开始；用电脑上的 Codex 时，打开<a href="./codex.html">本地 Codex 连接</a>；用 WorkBuddy 对应账号连接时，打开<a href="./workbuddy.html">WorkBuddy / CodeBuddy</a>。</p><p>测试也会调用模型，可能产生费用。通过连接测试不代表每道题都能答对。</p>`},
-      {id: 'distribution', title: '脚本猫与分发说明', searchSummary: '默认用 Tampermonkey 安装，查看脚本猫兼容范围。', html: `<p>默认按本页使用 Tampermonkey 安装。脚本猫脚本站可分发普通用户脚本，脚本猫扩展的实际安装和全功能兼容仍待验证。跨页课程队列和标签页静音也要在实际浏览器确认。专题阅读仍需保持前台。</p><p>分发时使用对应版本的 <code>dist/xuexitong-ai-assistant.user.js</code>，类型选“用户脚本”。发布介绍和兼容边界见页末的仓库说明。</p>`},
+      {id: 'with-ai', title: '需要 AI 辅助答题', searchSummary: '第一次配 AI？跟着图把 DeepSeek Flash 接进学习助手。', html: `<ol><li>打开面板的“接口”区，选择接入 AI。</li><li>添加服务商、地址、模型和自己的 API Key，选择文字或图片用途，保存。</li><li>点“测试 AI”，确认对应用途通过，再点“开始自动”。</li></ol><p>文字题和图片题可以分别配置。不会填接口时，从<a href="./ai.html">接入 AI</a>开始；用电脑上的 Codex 时，打开<a href="./codex.html">本地 Codex 连接</a>；用 WorkBuddy 对应账号连接时，打开<a href="./workbuddy.html">WorkBuddy / CodeBuddy</a>。</p><p>测试也会调用模型，可能产生费用。通过连接测试不代表每道题都能答对。</p>
+        <details id="deepseek-flash">
+          <summary>第一次配 AI？跟着图接入 DeepSeek Flash</summary>
+          <p>平时只做些文字题，可以先选 DeepSeek Flash。它的输入、输出单价都比 Pro 低，按实际用量扣费。先拿 5 元试用，用完再充就行。能用多久取决于题量、题目长度和模型写了多少。只看视频或读资料时，可以直接用「不接入 AI」模式。<a href="https://api-docs.deepseek.com/zh-cn/quick_start/pricing/">查看 DeepSeek 官方价格</a></p>
+          <h3>1. 打开 DeepSeek 开放平台</h3>
+          <p>打开 <a href="https://www.deepseek.com/">DeepSeek 官网</a>，点首页的「API 开放平台」。还没登录的话，先用自己的账号登录。</p>
+          <figure><img src="../assets/deepseek-home.png" alt="DeepSeek 官网首页用红框标出的 API 开放平台入口" loading="lazy"><figcaption>点红框里的「API 开放平台」。<a href="../assets/deepseek-home.png">查看官网截图大图</a></figcaption></figure>
+          <figure><img src="../assets/deepseek-sign-in.png" alt="DeepSeek 开放平台登录页，可选手机号、密码或微信登录" loading="lazy"><figcaption>登录开放平台后再创建 Key。</figcaption></figure>
+          <h3>2. 创建 API Key，当场复制</h3>
+          <p>登录后，从左侧打开「API keys」，点右侧「创建 API key」。名字可以填「学习通专用」，方便以后认出来，再点「创建」。</p>
+          <figure><img src="../assets/deepseek-api-keys.png" alt="左侧 API keys 和右侧创建 API key 已框出，列表仅显示一项示范名称" loading="lazy"><figcaption>打开「API keys」，再点「创建 API key」。<a href="../assets/deepseek-api-keys.png">查看密钥列表大图</a></figcaption></figure>
+          <figure><img src="../assets/deepseek-key-create.png" alt="创建弹窗中填写了学习通专用，下面是创建按钮" loading="lazy"><figcaption>填个自己认得出的名字。</figcaption></figure>
+          <aside class="deepseek-key-note" aria-label="保存 API Key"><p><strong>先复制整串 Key，再关弹窗。</strong> 完整 Key 只在这时显示。复制后可以直接粘进脚本。需要备份时，存到密码管理器或自己能访问的加密文档里。请勿发到聊天、截图或共享文档里。</p></aside>
+          <figure><img src="../assets/deepseek-key-copy.png" alt="创建成功弹窗，密钥已遮住，右侧保留复制按钮" loading="lazy"><figcaption>点「复制」即可拿到你自己的完整 Key。</figcaption></figure>
+          <h3>3. 余额不足时，先充一小笔</h3>
+          <p>点左侧「用量信息」，再点「去充值」。如果页面允许，第一次充 5 元就可以开始试用。充值金额以页面可选项为准。用过几次后，回来这里看看余额和消耗，再决定要不要补充。</p>
+          <figure><img src="../assets/deepseek-top-up.png" alt="用量信息页标出左侧菜单和去充值按钮，余额与累计消费已遮盖" loading="lazy"><figcaption>从「用量信息」进入充值。<a href="../assets/deepseek-top-up.png">查看充值入口大图</a></figcaption></figure>
+          <h3>4. 把 DeepSeek Flash 接进脚本</h3>
+          <ol>
+            <li>回到学习通，打开一个具体小节。在学习助手的「接口」区选「接入 AI（自动答题）」，展开「添加 / 编辑接口」。</li>
+            <li>服务商选 <strong>DeepSeek</strong>，接口协议用 <strong>OpenAI Chat Completions</strong>，Base URL 保留脚本预填的 <code>https://api.deepseek.com/v1</code>。模型选 <code>deepseek-flash</code>。下拉框里找不到时，选手动填写，再填同一个模型 ID。</li>
+            <li>把刚复制的 Key 粘进「API Key / 本地连接码」，在「这个接口用于」选「文字题＋图片题」，点「保存设置」。推理、最大输出等先用默认设置。</li>
+            <li>点面板上方的「测试 AI」。脚本会分别测文字和图片，确认两项都通过后，再点「开始自动」。</li>
+          </ol>
+          <figure><img src="../assets/deepseek-script-settings.png" alt="学习助手已选 DeepSeek Flash，用途为文字题＋图片题，Key 输入框留空" loading="lazy"><figcaption>用途选「文字题＋图片题」。Key 输入框留给你粘贴自己的密钥。<a href="../assets/deepseek-script-settings.png">查看脚本设置大图</a></figcaption></figure>
+          <p>如果提示 401，回到开放平台核对 Key，重新复制时留意有没有多余空格。如果提示 402，先检查余额。<a href="https://api-docs.deepseek.com/zh-cn/quick_start/error_codes/">DeepSeek 官方错误码说明</a></p>
+        </details>`},
       {id: 'school-domains', title: '学校域名设置', searchSummary: '学校自有域名需要在脚本里批准来源，并在油猴里添加用户匹配。', html: `<p>学校自有域名上的课程页不显示面板时，先覆盖安装最新版，只启用一份脚本，然后分别设置：</p><ol><li>在能运行脚本的学习通页面停止自动运行。打开油猴菜单中的「学校域名设置」，每行填写一个实际来源，例如 <code>https://mooc1.school.example</code>。只填协议和主机。HTTP、HTTPS 和不同子域名分别设置。</li><li>进入油猴管理面板，打开本脚本「设置 → 包含/排除 → 用户匹配」，增加例如 <code>https://mooc1.school.example/*</code> 的对应规则，保留原始匹配项。</li><li>保存并刷新相关页面。若已知题目或文档实际使用另一个学校来源，也要分别批准和匹配。核对面板后再手动开始。</li></ol><p>示例里的主机要换成学校实际使用的主机。请勿复制带个人参数的完整课程地址。HTTP 兼容保留原站点的传输属性。使用本地 Codex 或 WorkBuddy 桥接时，还要按页末仓库说明单独配置桥接允许的学校来源。</p>`},
       {id: 'update', title: '以后怎么更新', html: `<p>从旧仓库装过脚本的用户，请用上面的新安装地址覆盖原脚本，保留原脚本及设置。</p><p>点学习助手右上角的更新图标，或在油猴管理面板里对本脚本执行“检查更新”。最终仍要在油猴确认页点“更新”，再刷新学习页核对版本。</p><p>中转页可能需要等待一分钟左右，网络慢时更久；出现确认页前不要急着关闭。数分钟仍没有反应，再按上面的 ZIP 方法覆盖原脚本。</p><p>检查更新失败不会调用 AI，也不代表课程已经停止。完整更新说明保留在<a href="https://github.com/IrisBud/xuexitong-ai-assistant/blob/main/docs/UPDATES.md">仓库文档</a>。</p>`}
     ]

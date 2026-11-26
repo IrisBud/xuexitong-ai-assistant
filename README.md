@@ -2,6 +2,8 @@
 
 > **目前脚本最新版本为 1.8.8，请已安装脚本的用户尽快更新。** 从原仓库安装过的用户，请点「一键安装 / 更新脚本」覆盖原脚本并保留设置。覆盖后，后续更新会使用新仓库。
 
+用着顺手，欢迎点个 [Star⭐](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)~ 也可以 [![支持作者](docs/support-badge.svg)](docs/SUPPORT.md)
+
 ![最新版本](https://img.shields.io/badge/正式版-1.8.8-267356?style=flat-square)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
 [![Stars](https://img.shields.io/github/stars/IrisBud/xuexitong-ai-assistant?style=flat-square&color=267356)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
@@ -92,7 +94,5 @@
 ## 反馈与贡献
 
 [反馈问题或建议](https://github.com/IrisBud/xuexitong-ai-assistant/issues/new/choose)时，写清版本、卡在哪一步和面板提示；截图先遮掉账号、Key、连接码及完整课程地址。想提代码或补教程，欢迎看 [贡献说明](CONTRIBUTING.md)。
-
-用着顺手，欢迎点个 [Star⭐](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)~ 也可以 [![支持作者](docs/support-badge.svg)](docs/SUPPORT.md)。
 
 字体解析、jQuery、html2canvas 的许可及角色素材来源见 [NOTICE.md](NOTICE.md)。角色原设计作者为 [ZipZipPipe](https://space.bilibili.com/4168597)，不代表模型服务商官方形象。

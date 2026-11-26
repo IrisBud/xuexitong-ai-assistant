@@ -62,7 +62,7 @@ try{
   const context=await browser.newContext();
   const page=await pageAt(context);
   for(const [query,href] of [
-   ['脚本猫与分发说明','guides/start.html#distribution'],
+   ['DeepSeek Flash','guides/start.html#with-ai'],
    ['学校域名设置','guides/start.html#school-domains'],
    ['视频任务点','guides/media.html#completion'],
    ['只读结构采集','guides/troubleshooting.html#structure-collection']
@@ -74,6 +74,33 @@ try{
    assert(await page.locator(`section[id="${href.split('#')[1]}"] h2`).isVisible());
    await page.goto(base);
   }
+  await context.close();
+ });
+ await check('deepseek-walkthrough-folds-and-uses-redacted-images',async()=>{
+  const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await pageAt(context,'guides/start.html#with-ai');
+  const tutorial=page.locator('#with-ai details#deepseek-flash'),summary=tutorial.locator('summary');
+  assert.equal(await page.locator('#distribution').count(),0);
+  assert.equal(await page.getByText('脚本猫与分发说明',{exact:true}).count(),0);
+  assert.equal(await tutorial.getAttribute('open'),null);
+  assert.equal(await tutorial.locator('h3').first().isVisible(),false);
+  await summary.focus();
+  await summary.press('Enter');
+  assert.equal(await tutorial.locator('h3').count(),4);
+  assert(await tutorial.locator('ol li').filter({hasText:'选「文字题＋图片题」'}).isVisible());
+  const images=tutorial.locator('figure img');
+  assert.equal(await images.count(),7);
+  await images.evaluateAll(async screenshots=>{
+   for(const screenshot of screenshots)screenshot.loading='eager';
+   await Promise.all(screenshots.map(screenshot=>screenshot.decode()));
+  });
+  assert(await images.evaluateAll(screenshots=>screenshots.every(screenshot=>screenshot.naturalWidth>0)));
+  const localImage=tutorial.getByRole('link',{name:'查看密钥列表大图'});
+  assert.equal(await localImage.getAttribute('href'),'../assets/deepseek-api-keys.png');
+  await page.setViewportSize({width:390,height:844});
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  assert(await tutorial.getByRole('complementary',{name:'保存 API Key'}).isVisible());
+  await summary.click();
+  assert.equal(await tutorial.locator('h3').first().isVisible(),false);
   await context.close();
  });
  await check('search-finds-topic-keywords-and-no-results-retains-directory',async()=>{

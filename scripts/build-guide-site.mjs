@@ -23,7 +23,7 @@ for(const[id,bg,ink,shape]of covers)await writeFile(resolve(assets,`cover-${id}.
 const images=[
  ['getting-started/tampermonkey-permissions.png','tampermonkey-permissions.png'],
  ['getting-started/chapter-directory-thumb.png','chapter-directory.png'],
- ['getting-started/chapter-study-thumb.png','chapter-study.png'],
+ ['getting-started/chapter-study-guide.png','chapter-study.png'],
  ['panel-layout/overview.png','panel-overview.png'],
  ['panel-layout/desktop-study.png','panel-study.png'],
  ['panel-layout/desktop-homework.png','panel-homework.png'],
