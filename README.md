@@ -4,7 +4,7 @@
 
 用着顺手，欢迎点个 [Star⭐](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)~ 也可以 [![支持作者](docs/support-badge.svg)](docs/SUPPORT.md)
 
-![最新版本](https://img.shields.io/badge/正式版-1.8.9-267356?style=flat-square)
+[![最新版本](docs/readme/version.svg)](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
 [![GitHub Stars](docs/readme/stars.svg)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
 
