@@ -1,10 +1,10 @@
 # 超星学习通 · 学习助手
 
-> **目前脚本最新版本为 1.8.8，请已安装脚本的用户尽快更新。** 从原仓库安装过的用户，请点「一键安装 / 更新脚本」覆盖原脚本并保留设置。覆盖后，后续更新会使用新仓库。
+> **目前脚本最新版本为 1.8.9，请已安装脚本的用户尽快更新。** 旧版若无法检查更新，请从 [GitHub 最新发行](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest) 覆盖原脚本并保留设置。安装后刷新学习页。
 
 用着顺手，欢迎点个 [Star⭐](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)~ 也可以 [![支持作者](docs/support-badge.svg)](docs/SUPPORT.md)
 
-![最新版本](https://img.shields.io/badge/正式版-1.8.8-267356?style=flat-square)
+![最新版本](https://img.shields.io/badge/正式版-1.8.9-267356?style=flat-square)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
 [![GitHub Stars](docs/readme/stars.svg)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
 
@@ -42,14 +42,14 @@
 <a id="能做哪些事"></a>
 
 ## 功能
-<!-- 功能核对版本：1.8.8 -->
+<!-- 功能核对版本：1.8.9 -->
 
 - **课程学习：** 视频、音频、PDF / Word 和专题阅读，支持静音与倍速。
 - **章节测验与作业（作业为测试版）：** 支持已适配题型的答案预览、填写、暂存和提交，作业支持 UEditor 编程题和原生 C/C++ 代码块。
 - **章节与课程讨论：** 章节讨论可设置回复字数。课程讨论支持回复话题、发布课程问题和学习收获。
-- **考试辅助（测试版）：** 支持整卷预览、参考资料导入和逐题复核。使用范围见[考试教程](https://irisbud.github.io/xuexitong-ai-assistant/guides/answers.html#exam)。
+- **考试辅助（测试版）：** 支持整卷预览、参考资料导入和逐题复核，可调整复查确定度阈值。使用范围见[考试教程](https://irisbud.github.io/xuexitong-ai-assistant/guides/answers.html#exam)。
 - **课程安排：** 支持章节搜索、跳过记录、集中补做和多门课程队列。只学本课，无需先建队列。
-- **模型与外观：** 文字、图片接口可分开配置，支持主流服务商、自定义接口、本地 Codex 和 WorkBuddy / CodeBuddy。可切换面板主题。
+- **模型与外观：** 文字、图片接口可分开配置，支持主流服务商、自定义接口、本地 Codex 和 WorkBuddy / CodeBuddy。可切换彩虹等面板主题。
 
 ![学习助手：打开一节课，开始学习](docs/readme/guide-cover.svg)
 
@@ -69,6 +69,7 @@
 
 | 版本 | 变化 |
 | --- | --- |
+| 1.8.9 · 2026-11-27 | 修复课程队列在总目录停住、AI 主题遮住更新图标的问题。新增备用更新源、彩虹主题和可调的考试复查确定度阈值，支持作者移到侧栏爱心入口。 |
 | 1.8.8 · 2026-11-25 | 作业的 C/C++ 编程题使用原生代码块，自动分行、缩进并拦截明显错用语言的回复。 |
 | 1.8.7 · 2026-11-24 | 独立作业支持 UEditor 编程题，保留代码换行、缩进和已有作答。 |
 | 1.8.6 · 2026-11-21 | 修复考试多选漏选和确认一次只填一项的问题，区分答案待复查与保存待确认。 |
