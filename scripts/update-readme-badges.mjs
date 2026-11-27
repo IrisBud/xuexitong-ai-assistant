@@ -10,7 +10,7 @@ const star = '<path fill="#ffdd83" d="m13 4.5 1.7 3.5 3.9.6-2.8 2.7.6 3.8-3.4-1.
 
 for (const { file, title, label, value, labelWidth, leftIcon } of [
   { file: 'version', title: `正式版 ${version}`, label: '正式版', value: version, labelWidth: 46, leftIcon: '' },
-  { file: 'stars', title: `GitHub Stars: ${stars}`, label: 'Stars', value: stars, labelWidth: 57, leftIcon: star },
+  { file: 'star-count', title: `GitHub Stars: ${stars}`, label: 'Stars', value: stars, labelWidth: 57, leftIcon: star },
 ]) {
   const valueWidth = Math.max(28, value.length * 8 + 12);
   const width = labelWidth + valueWidth;

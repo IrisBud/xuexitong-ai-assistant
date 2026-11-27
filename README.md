@@ -6,7 +6,7 @@
 
 [![最新版本](docs/readme/version.svg)](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-油猴脚本-267356?style=flat-square)](https://www.tampermonkey.net/)
-[![GitHub Stars](docs/readme/stars.svg)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
+[![GitHub Stars](docs/readme/star-count.svg)](https://github.com/IrisBud/xuexitong-ai-assistant/stargazers)
 
 [![一键安装 / 更新脚本](docs/readme/install.svg)](https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js)
 [![打开使用手册](docs/readme/manual.svg)](https://irisbud.github.io/xuexitong-ai-assistant/)
