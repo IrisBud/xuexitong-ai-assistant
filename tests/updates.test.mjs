@@ -14,5 +14,5 @@ test('Wi-Fi detection is strict; effective 4g never means WLAN',()=>{
 test('metadata is bounded and cannot supply an arbitrary download destination',()=>{
  const data=U.validate({...U.release,downloadUrl:'https://untrusted.invalid/payload'});assert(!Object.hasOwn(data,'downloadUrl'));
  for(const changes of [[],['x'.repeat(401)],Array(21).fill('x'),[{}]])assert.throws(()=>U.validate({...U.release,changes}));
- assert.equal(new URL(U.installUrl).hostname,'raw.githubusercontent.com');
+ assert.equal(new URL(U.installUrl).hostname,'github.com');
 });

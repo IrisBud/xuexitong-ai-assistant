@@ -16,9 +16,14 @@ try{
   await page.addScriptTag({content:bundle});if(id in names)await page.evaluate(()=>{XxtPersonaHealth.success(XxtAi.load());document.dispatchEvent(new Event('xxt-ai-test-passed'));});await page.emulateMedia({reducedMotion:'reduce'});
   for(const [width,height]of [[1100,1100],[390,1000],[360,900],[320,844],[390,540]]){
    await page.setViewportSize({width,height});await page.waitForTimeout(70);
+   if(id in names)assert(await page.locator('[data-quick-update]').evaluate(quick=>{
+    const mascot=quick.parentElement.querySelector('.xxt-theme-mascot'),header=quick.parentElement.querySelector('.xxt-head');
+    const r=quick.getBoundingClientRect(),h=header.getBoundingClientRect();
+    return Number(getComputedStyle(quick).zIndex)>Number(getComputedStyle(mascot).zIndex)&&r.top>=h.top&&r.bottom<=h.bottom;
+   }),`${id} ${width}: update shortcut must stay in the header above the mascot`);
    const check=async stage=>{
     const g=await page.evaluate(()=>{
-     const p=document.querySelector('[data-xxt-codex-panel]'),box=s=>p.querySelector(s).getBoundingClientRect(),fixed=box('.xxt-fixed-controls'),grid=box('.xxt-workspace-grid'),nav=box('.xxt-workspace-nav'),pane=p.querySelector('[data-workspace-pane]:not([hidden])'),r=p.getBoundingClientRect();
+     const p=document.querySelector('[data-xxt-codex-panel]'),box=s=>p.querySelector(s).getBoundingClientRect(),fixed=box('.xxt-fixed-controls'),grid=box('.xxt-workspace-grid'),nav=box('.xxt-workspace-rail'),pane=p.querySelector('[data-workspace-pane]:not([hidden])'),r=p.getBoundingClientRect();
      return{skin:p.dataset.skin,fixedBottom:fixed.bottom,sceneTop:box('.xxt-scene-art').top,modeTop:box('.xxt-mode-dock').top,actionsTop:box('.xxt-actions').top,navTop:nav.top,navBottom:nav.bottom,paneTop:pane.getBoundingClientRect().top,clearance:parseFloat(getComputedStyle(p.querySelector('.xxt-workspace-grid')).paddingTop),gridTop:grid.top,gridGap:grid.top-fixed.bottom,modeOffset:box('[data-homework-modes]').top-fixed.top,actionsOffset:box('.xxt-actions').top-fixed.top,statusOffset:box('.xxt-status-card').top-fixed.top,paneHeight:pane.clientHeight,panelRight:r.right,panelBottom:r.bottom,width:innerWidth,height:innerHeight};
     });
     assert(g.panelRight<=width+1&&g.panelBottom<=height+1,JSON.stringify(g));assert(g.paneHeight>0,JSON.stringify(g));

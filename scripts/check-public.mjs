@@ -43,6 +43,7 @@ assert(readme.includes(`## 功能\n<!-- 功能核对版本：${version} -->`),'R
 assert(script.includes(`@version      ${version}`));assert(script.includes('@connect      *'));
 assert.equal(release.version,version);assert.deepEqual(JSON.parse(readFileSync(resolve(root,'dist/release.json'),'utf8')),release);
 const meta=readFileSync(resolve(root,'dist/xuexitong-ai-assistant.meta.js'),'utf8');assert.equal(meta,script.slice(0,script.indexOf('(() => {')));
-assert(meta.includes('@updateURL    https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js'));
+assert(meta.includes('@updateURL    https://irisbud.github.io/xuexitong-ai-assistant/assets/xuexitong-ai-assistant.meta.js'));
+assert(meta.includes('@downloadURL  https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest/download/xuexitong-ai-assistant.user.js'));
 console.log(`Public build checked: ${paths.length} files, source sync and JavaScript syntax; theme assets hash-verified; no known personal paths or paired credentials.`);
 

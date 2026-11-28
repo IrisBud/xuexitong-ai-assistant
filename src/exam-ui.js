@@ -1,12 +1,14 @@
 (() => {
     'use strict';
     const settingKey='xxt-exam-settings';
-    const defaults={answer:'manual',submit:'manual',minutes:0,strong:false};
+    const defaults={answer:'manual',submit:'manual',minutes:0,strong:false,confidenceThreshold:80};
+    const validThreshold=value=>Number.isInteger(value)&&value>=0&&value<=100;
     const load=()=>{
         const saved=GM_getValue(settingKey,defaults)||{};
         const answer=saved.answer==='auto'?'auto':'manual';
         const minutes=Number.isInteger(saved.minutes)&&saved.minutes>=0&&saved.minutes<=360?saved.minutes:0;
-        return {answer,submit:answer==='auto'&&saved.submit==='auto'?'auto':'manual',minutes,strong:saved.strong===true};
+        const confidenceThreshold=validThreshold(saved.confidenceThreshold)?saved.confidenceThreshold:defaults.confidenceThreshold;
+        return {answer,submit:answer==='auto'&&saved.submit==='auto'?'auto':'manual',minutes,strong:saved.strong===true,confidenceThreshold};
     };
     const el=(tag,content,cls)=>{
         const node=document.createElement(tag);
@@ -19,10 +21,11 @@
         const seconds=Math.ceil(ms/1000);
         return `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     };
-    const confidenceHelp='每题右上角是 AI 对该题建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。低于 80% 的建议会标为待复查。保存待确认表示学习通还没有确认这道题的保存。';
+    const confidenceHelp='每题右上角是 AI 对建议答案的自评确定度。它只能辅助复查，不能代表正确率或得分。保存待确认表示学习通还没有确认这道题的保存。';
+    const reportConfidenceHelp=report=>`本次复查阈值为 ${report.confidenceThreshold??defaults.confidenceThreshold}%。${confidenceHelp}`;
     const reviewLabel=item=>item.saveIssue?'保存待确认':'待复查';
     function plainReport(report){
-        return ['考试作答理由',confidenceHelp,report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
+        return ['考试作答理由',reportConfidenceHelp(report),report.at?new Date(report.at).toLocaleString('zh-CN'):'', ...report.items.map(item=>{
             const confidence=item.confidence===null?'':` · AI 自评 ${Math.round(100*item.confidence)}%`;
             return [`第 ${item.number} 题${item.review?' · '+reviewLabel(item):''}${confidence}${item.image?' · 含图':''}`,item.stem,
                 item.options.map(o=>`${o.key}. ${o.text}`).join('\n'),`建议答案 ${item.answer||'未生成'}`,item.confirmed?`人工已确认 ${item.confirmed}`:'',item.explanation,
@@ -72,6 +75,31 @@
             persist();
         };
         mode.append(submitHint,timeLabel,timeNote);
+
+        if(phase!=='result'){
+            const threshold=el('input');
+            Object.assign(threshold,{type:'number',inputMode:'numeric',min:'0',max:'100',step:'1',value:String(settings.confidenceThreshold)});
+            threshold.dataset.examConfidenceThreshold='true';
+            const label=el('label',null,'xxt-exam-time');
+            label.append(el('span','复查确定度阈值（%）'),threshold);
+            const help='低于此值的建议列为待复查。默认 80%，更改后在下次运行时生效。';
+            const hint=el('p',help,'xxt-exam-muted');
+            hint.id='xxt-exam-threshold-note';
+            hint.setAttribute('role','status');
+            threshold.setAttribute('aria-describedby',hint.id);
+            threshold.onchange=()=>{
+                if(threshold.value===''||!validThreshold(threshold.valueAsNumber)){
+                    threshold.value=String(settings.confidenceThreshold);
+                    hint.textContent=`请输入 0 到 100 的整数。已保留 ${settings.confidenceThreshold}%。`;
+                    return;
+                }
+                hint.textContent=help;
+                if(threshold.valueAsNumber===settings.confidenceThreshold)return;
+                set('confidenceThreshold',threshold.valueAsNumber);
+                persist();
+            };
+            mode.append(label,hint);
+        }
 
         const materials=el('section',null,'xxt-exam-group');materials.append(el('h3','知识文件'));
         const filesInput=el('input');filesInput.type='file';filesInput.multiple=true;filesInput.accept=XxtExamKnowledge.accept;filesInput.dataset.examFiles='true';
@@ -179,6 +207,7 @@
             const scrollTop=review.scrollTop;
             report=next;review.replaceChildren();
             const items=next?.items||[];exportButton.disabled=!items.length;
+            confidenceNote.textContent=items.length?reportConfidenceHelp(next):confidenceHelp;
             reviewLink.hidden=!items.some(item=>item.review);
             if(!items.length){review.append(el('p',phase==='result'?'本卷暂无可读取的理由记录。':'运行后，这里会显示逐题答案与理由。','xxt-exam-muted'));progress.textContent='';return;}
             const uncertain=items.filter(item=>item.review&&!item.saveIssue).length;
@@ -210,7 +239,7 @@
         }
         function set(key,value){settings[key]=value;callbacks.change?.();}
         function persist(write=true){
-            if(write&&minutesValid)GM_setValue(settingKey,settings);
+            if(write)GM_setValue(settingKey,settings);
             renderAnswer();renderSubmit();
             submitHint.textContent=settings.answer==='manual'?'选择 AI 直接作答后可启用自动交卷。':'';
             submitHint.hidden=!submitHint.textContent;

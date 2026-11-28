@@ -48,10 +48,10 @@ async function setup(opts={}){
         const navigation=url.pathname===single&&opts.previewLink?previewControl.repeat(opts.ambiguousPreview?2:1):'';
         return route.fulfill({contentType:'text/html;charset=utf-8',body:url.pathname===result?'<p>交卷成功</p>':html+navigation});
     });
-    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway,keepOneChoice,nativeSave})=>{
+    await context.addInitScript(({uncertain,uncertainEssay,latency,receipt,questionCount,image,vision,classOnly,extraQuestions,slowQuestions,refuseWrite,stopPartway,keepOneChoice,nativeSave,emptyChoice,rainbow})=>{
         window.unsafeWindow=window;
         const config={provider:'custom',protocol:'chat',model:'fixture',key:'fixture',baseUrl:'https://model.fixture.invalid/v1'};
-        window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem('settings:'+key)||'null')??({'xxt-ai-enabled':true,'xxt-quiet-enabled':false,'xxt-ai-config':config,'xxt-ai-vision-enabled':vision||false,'xxt-ai-vision-config':config}[key]??fallback);
+        window.GM_getValue=(key,fallback)=>JSON.parse(localStorage.getItem('settings:'+key)||'null')??({'xxt-ai-enabled':true,'xxt-quiet-enabled':false,'xxt-ai-config':config,'xxt-ai-vision-enabled':vision||false,'xxt-ai-vision-config':config,'xxt-ui-preference':rainbow?'rainbow':undefined}[key]??fallback);
         window.GM_setValue=(key,value)=>localStorage.setItem('settings:'+key,JSON.stringify(value));
         window.counters={open:0,confirm:0,fill:0,text:0,models:0,images:0,prompt:'',requests:[],reviewRequests:[]};
         document.hasFocus=()=>true;
@@ -68,7 +68,7 @@ async function setup(opts={}){
             const answers=questions.map(q=>{
                 const text=q.type==='blank'||q.type==='essay';
                 const low=uncertain&&q.id==='q-2'||uncertainEssay&&q.id==='q-3';
-                return {id:q.id,choices:text?[]:q.type==='multiple'?(review?['B','C']:nativeSave?.wide?['A','B','C','D','E','F']:['A','B']):['A'],
+                return {id:q.id,choices:text||(!review&&low&&emptyChoice)?[]:q.type==='multiple'?(review?['B','C']:nativeSave?.wide?['A','B','C','D','E','F']:['A','B']):['A'],
                     ...(text?{texts:['样例术语']}:{}),readable:true,confidence:review?0.99:low?0.42:0.95,
                     explanation:review?(text?'关键推理：辨认定义后给出术语；得分点：术语准确。':q.options.map(({key})=>`${key}：逐项依据`).join('\n')):`示例证据 ${q.id}`};
             });
@@ -249,6 +249,45 @@ async function scenario(name,opts,check){
     } finally{await context.close();}
 }
 try {
+    await scenario('review-threshold-reclassifies-cached-answers-and-persists',{uncertain:true,rainbow:true},async page=>{
+        const input=page.getByRole('spinbutton',{name:'复查确定度阈值（%）'});
+        assert.equal(await page.locator('[data-xxt-exam-page]').getAttribute('data-skin'),'rainbow');
+        assert.equal(await input.inputValue(),'80');
+        await start(page,'solve');await waitText(page,'已生成答案与理由');
+        const card=nthReview(page,2);
+        assert.equal(await card.getAttribute('data-state'),'review');
+        assert.equal(await card.evaluate(node=>getComputedStyle(node).backgroundColor),'rgb(255, 240, 214)');
+        assert.deepEqual((await stats(page)).reviewRequests,[['q-2']]);
+        await input.fill('101');await input.press('Tab');
+        assert.equal(await input.inputValue(),'80');
+        await input.fill('42');await input.press('Tab');
+        assert.match(await page.locator('[data-exam-confidence-note]').textContent(),/80%/);
+        await start(page,'solve');await waitText(page,'已生成答案与理由');
+        assert.equal(await card.getAttribute('data-state'),'ready');
+        assert.match(await page.locator('[data-exam-confidence-note]').textContent(),/42%/);
+        assert.equal((await stats(page)).models,2);
+        const downloadEvent=page.waitForEvent('download');
+        await page.locator('[data-exam-export]').click();
+        const download=await downloadEvent;
+        assert.match(await readFile(await download.path(),'utf8'),/本次复查阈值为 42%/);
+        await input.fill('100');await input.press('Tab');
+        await start(page,'solve');await waitText(page,'已生成答案与理由');
+        assert.equal(await card.getAttribute('data-state'),'review');
+        assert.deepEqual((await stats(page)).reviewRequests,[['q-2'],['q-1','q-3']]);
+        await page.reload();await page.addScriptTag({content:bundle});
+        assert.equal(await input.inputValue(),'100');
+        assert.equal(await card.getAttribute('data-state'),'review');
+    });
+    await scenario('zero-threshold-still-reviews-missing-answers-and-blocks-submit',{uncertain:true,emptyChoice:true,nativeSave:{}},async page=>{
+        const input=page.getByRole('spinbutton',{name:'复查确定度阈值（%）'});
+        await input.fill('0');await input.press('Tab');
+        await choice(page,'answer-auto').click();await choice(page,'submit-auto').click();
+        await start(page);await waitText(page,'还有 1 题待复查');
+        assert.equal(await nthReview(page,2).getAttribute('data-state'),'review');
+        const checked=await stats(page);
+        assert.deepEqual(checked.native.requests,[1,3]);
+        assert.deepEqual([checked.open,checked.confirm],[0,0]);
+    });
     await scenario('one-confirmation-writes-the-entire-six-option-answer-without-global-ajax-events',
         {uncertain:true,nativeSave:{wide:true,silent:true}},async page=>{
         await start(page,'solve');await waitText(page,'已生成答案与理由');

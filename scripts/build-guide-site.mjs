@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 
 const root=resolve(import.meta.dirname,'..'),site=resolve(root,'site'),assets=resolve(site,'assets');
 const {version}=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'));
-const {channel}=JSON.parse(await readFile(resolve(root,'src/release.json'),'utf8'));
+const release=JSON.parse(await readFile(resolve(root,'src/release.json'),'utf8'));
+const {channel}=release;
 const edition=channel==='candidate'?'候选版':'正式版';
 const repo='https://github.com/IrisBud/xuexitong-ai-assistant';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,7 +35,8 @@ const images=[
  ['window-layout/step-1.png','window-layout.png']
 ];
 for(const[source,target]of images)await copyFile(resolve(root,'docs',source),resolve(assets,target));
-await writeFile(resolve(assets,'release.json'),JSON.stringify({version,repository:repo,download:'https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js'},null,2)+'\n');
+await writeFile(resolve(assets,'release.json'),JSON.stringify({...release,repository:repo,download:repo+'/releases/latest/download/xuexitong-ai-assistant.user.js'},null,2)+'\n');
+await copyFile(resolve(root,'dist/xuexitong-ai-assistant.meta.js'),resolve(assets,'xuexitong-ai-assistant.meta.js'));
 let home=await readFile(resolve(site,'index.html'),'utf8');home=home.replace(/(?:当前正式版|本地手册预览) (?=<span data-version>)/,channel==='candidate'?'本地手册预览 ':'当前正式版 ').replace(/(?:随正式版|按候选版) (?=<span data-version>)/,channel==='candidate'?'按候选版 ':'随正式版 ').replace(/(<span data-version>)[^<]+(<\/span>)/g,`$1${version}$2`);await writeFile(resolve(site,'index.html'),home);
 const banner=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 390" role="img" aria-label="学习助手：视频、阅读与AI答题"><rect width="1200" height="390" rx="16" fill="#163a35"/><g fill="#f5f1e3" font-family="Microsoft YaHei,PingFang SC,sans-serif"><text x="65" y="105" font-size="27">学习通 · 学习助手</text><text x="65" y="180" font-size="51" font-weight="600">打开一节课，开始学习。</text><text x="68" y="235" font-size="22" fill="#c8d8c7">视频与阅读直接开始，题目可接入自己的 AI。</text><text x="68" y="322" font-size="17" fill="#b5cabc">安装脚本 → 打开具体小节 → 选择运行模式</text></g><g transform="translate(905 192) rotate(-12)"><rect x="-110" y="-113" width="150" height="211" rx="10" fill="#d9ba62"/><path d="m-73-28 23 19 38-48" fill="none" stroke="#395241" stroke-width="5"/></g><g transform="translate(1000 192) rotate(11)"><rect x="-74" y="-108" width="150" height="211" rx="10" fill="#e0dfc9"/><circle cx="1" cy="-22" r="41" fill="none" stroke="#335b48" stroke-width="2"/><path d="m-9-42 31 21-31 21Z" fill="#335b48"/><path d="M-47 51h94m-94 15h64" fill="none" stroke="#335b48" stroke-width="3"/></g></svg>\n`;
 await mkdir(resolve(root,'docs/readme'),{recursive:true});await writeFile(resolve(root,'docs/readme/guide-cover.svg'),banner);

@@ -12,8 +12,8 @@ const header = `// ==UserScript==
 // @version      ${version}
 // @description  视频、文献与学习练习辅助；自配 AI API；不含任何密钥
 // @supportURL   https://github.com/IrisBud/xuexitong-ai-assistant/issues
-// @updateURL    https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js
-// @downloadURL  https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js
+// @updateURL    https://irisbud.github.io/xuexitong-ai-assistant/assets/xuexitong-ai-assistant.meta.js
+// @downloadURL  https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest/download/xuexitong-ai-assistant.user.js
 // @match        https://*.chaoxing.com/*
 // @match        https://chaoxing.com/*
 // @run-at       document-idle
@@ -26,6 +26,8 @@ const header = `// ==UserScript==
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
 // @grant        unsafeWindow
+// @connect      raw.githubusercontent.com
+// @connect      irisbud.github.io
 // @connect      *
 // ==/UserScript==
 

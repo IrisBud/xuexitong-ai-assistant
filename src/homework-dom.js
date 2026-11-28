@@ -24,11 +24,51 @@
   slots.sort((a,b)=>a.number-b.number);
   return slots.length>0&&slots.length<=20&&slots.every((slot,index)=>slot.number===index+1) ? slots : null;
  }
+ function readingEntries(node,title,number,form){
+  const groups=node.querySelectorAll(':scope > .readComprehensionQues');
+  if(!title||groups.length!==1)return null;
+  const group=groups[0],items=[...group.children];
+  const media='img,svg,math,canvas,audio,video,iframe,object,embed';
+  if(!items.length||title.querySelector(media)||group.querySelector(media))return null;
+  const passage=title.innerText.replace(/^\s*\d+\s*[.．、]\s*/,'').replace(/^\s*[（(]阅读理解[）)]\s*/,'').trim();
+  if(!passage)return null;
+  const entries=[];
+  for(const [index,item] of items.entries()){
+   const headings=item.querySelectorAll(':scope > .reader_answer_tit');
+   const heading=headings[0],kind=plain(heading?.querySelector(':scope > .read_type'));
+   const fields=item.querySelectorAll(':scope > input[type="hidden"]');
+   const field=fields[0],stems=item.querySelectorAll(':scope > .stem_answer');
+   if(!item.matches('.reading_answer[qtype="0"]')||headings.length!==1||!/^[（(]?单选题[）)]?$/.test(kind)||
+      fields.length!==1||field.form!==form||field.disabled||stems.length!==1)return null;
+   const rows=[...stems[0].children];
+   const qid=rows[0]?.getAttribute('qid')||'';
+   if(!/^[A-Za-z0-9_-]{1,64}$/.test(qid)||rows.length<2||rows.length>20||
+      rows.some(row=>!row.matches('.hoverDiv[qtype="15"]')||row.getAttribute('qid')!==qid||
+       !/^\s*(?:return\s+)?addChoice\s*\(/.test(row.getAttribute('onclick')||'')))return null;
+   const options=rows.map(row=>{
+    const markers=row.querySelectorAll(':scope > .num_option[data]');
+    const bodies=row.querySelectorAll(':scope > .answer_p');
+    const key=markers.length===1?markers[0].getAttribute('data'):'';
+    return {key:plain(markers[0])===key?key:'',text:bodies.length===1?plain(bodies[0]):''};
+   });
+   const stem=heading.innerText.replace(/^\s*[（(]\s*\d+\s*[）)]\s*/,'').replace(/^\s*[（(]单选题[）)]\s*/,'').trim();
+   if(!stem||options.some(option=>!/^[A-T]$/.test(option.key)||!option.text)||
+      new Set(options.map(option=>option.key)).size!==options.length)return null;
+   entries.push({element:item,title:heading,rows,readingField:field,question:{
+    id:'reading-'+qid,number:number+'.'+(index+1),type:'single',
+    text:'阅读材料：\n'+passage+'\n\n小题：\n'+stem,options
+   }});
+  }
+  return entries;
+ }
  function scan(doc){
   const form=doc.querySelector('.fanyaMarking #submitForm');if(!form)return[];
-  return [...form.querySelectorAll('.questionLi.singleQuesId[id^="question"]')].filter(node=>!node.parentElement?.closest('.questionLi')).map(node=>{
+  return [...form.querySelectorAll('.questionLi.singleQuesId[id^="question"]')].filter(node=>!node.parentElement?.closest('.questionLi')).flatMap(node=>{
    const title=node.querySelector(':scope > h3.mark_name'),kind=plain(title?.querySelector('.colorShallow'));
    const id=node.id,number=node.getAttribute('aria-label')?.match(/题目\s*(\d+)/)?.[1]||plain(title).match(/^(\d+)\./)?.[1]||id;
+   if(node.getAttribute('typename')==='阅读理解'||/^[（(]?阅读理解[）)]?$/.test(kind)){
+    return readingEntries(node,title,number,form)||{element:node,title,rows:[],question:{id,number,type:'unsupported',text:plain(title),options:[]}};
+   }
    const rows=[...node.querySelectorAll(':scope > .stem_answer.qtDetail > .answerBg[role="radio"],:scope > .stem_answer.qtDetail > .answerBg[role="checkbox"]')];
    const richSlots=/填空题/.test(kind)?richBlanks(node):null;
    const richLayout=node.querySelector(':scope > .stem_answer .blankItemDiv .textDIV');
@@ -132,14 +172,28 @@
    prior[index]=comparable(value);
   }
  }
- function choices(entry){
-  const marked=entry.rows.flatMap((row,i)=>{
+ function markedChoices(entry){
+  return entry.rows.flatMap((row,i)=>{
    const input=row.querySelector('input[type="radio"],input[type="checkbox"]'),marker=row.querySelector('.num_option,.num_option_dx');
    return input?.checked||row.getAttribute('aria-checked')==='true'||row.classList.contains('check_answer')||row.classList.contains('check_answer_dx')||marker?.classList.contains('check_answer')||marker?.classList.contains('check_answer_dx')?[entry.question.options[i].key]:[];
-  });
+  }).sort();
+ }
+ function choices(entry){
+  const marked=markedChoices(entry);
+  if(entry.readingField){
+   const field=entry.readingField;
+   const fields=entry.element.querySelectorAll(':scope > input[type="hidden"]');
+   if(!entry.element.isConnected||fields.length!==1||fields[0]!==field||
+      field.disabled||!field.form||field.form!==entry.element.closest('form'))
+    throw Error('阅读理解第 '+entry.question.number+' 小题的作答字段已变化，请人工核对。');
+   const value=field.value.trim();
+   if(!value&&!marked.length)return [];
+   if(marked.length===1&&marked[0]===value)return marked;
+   throw Error('阅读理解第 '+entry.question.number+' 小题的页面选项与作答字段不一致，请人工核对。');
+  }
   const field=entry.element.querySelector('input[type="hidden"][id="answer'+entry.element.id.slice('question'.length)+'"]');
   const value=String(field?.value||'').trim();
-  if(marked.length)return marked.sort();
+  if(marked.length)return marked;
   if(!value)return[];
   if(/^[A-T]+$/.test(value)&&[...value].every(k=>entry.question.options.some(o=>o.key===k)))return[...value].sort();
   if(entry.question.type==='boolean'&&/^(true|false)$/i.test(value))return entry.question.options.filter(o=>(value.toLowerCase()==='true'?/^(对|正确|√)$/:/^(错|错误|×)$/).test(o.text)).map(o=>o.key);

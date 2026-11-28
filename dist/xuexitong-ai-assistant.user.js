@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         超星学习通自动化脚本（支持接入各种主流AI模型api）
 // @namespace    xuexitong-ai-assistant.public
-// @version      1.8.9
+// @version      1.8.10
 // @description  视频、文献与学习练习辅助；自配 AI API；不含任何密钥
 // @supportURL   https://github.com/IrisBud/xuexitong-ai-assistant/issues
 // @updateURL    https://irisbud.github.io/xuexitong-ai-assistant/assets/xuexitong-ai-assistant.meta.js
@@ -24,7 +24,7 @@
 // ==/UserScript==
 
 (() => { const module = undefined, exports = undefined, define = undefined;
-globalThis.XxtRelease = {"version":"1.8.9","date":"2026-11-27","channel":"stable","changes":["考试辅助可调节复查确定度阈值，默认 80%。","支持作者移到侧栏「更多」旁的爱心入口。","新增彩虹主题，顶部和侧栏按图标配色显示选中态，待机符号和支持作者爱心也采用彩虹配色。","修复 AI 主题装饰盖住右上角更新图标的问题。面板检查可切换到手册备用来源，油猴通过手册检查并从 GitHub Release 下载。","修复课程队列进入课程总目录后停住的问题，从已识别的目录打开原生小节入口。"]};
+globalThis.XxtRelease = {"version":"1.8.10","date":"2026-11-28","channel":"stable","changes":["独立作业支持已采集的文字阅读理解单选结构。每道小题带上共享文章，填写后核对选项和作答字段。"]};
 /* Exact origins approved in the script manager's private storage, never by page messages. */
 (function (root) {
     'use strict';
@@ -5771,12 +5771,12 @@ return {Typr,md5:this.md5};
 /* Official model catalog. Refresh sources and capabilities before every release. */
 (function (root) {
     'use strict';
-    const verifiedAt = '2026-11-27', release = '1.8.9';
+    const verifiedAt = '2026-11-28', release = '1.8.10';
     const rows = (ids, profile = '', vision = null) => ids.map(id => ({ id, profile, vision }));
     const providers = {
         openai: { sources: ['https://developers.openai.com/api/docs/models','https://developers.openai.com/api/docs/changelog','https://developers.openai.com/api/docs/deprecations','https://developers.openai.com/api/docs/guides/latest-model','https://developers.openai.com/api/docs/guides/reasoning','https://developers.openai.com/api/docs/models/gpt-6.2-astra','https://developers.openai.com/api/docs/models/gpt-6.2-sol','https://developers.openai.com/api/docs/models/gpt-6-sol','https://developers.openai.com/api/docs/models/gpt-6.1-terra'], models: rows(['gpt-6.2-astra','gpt-6.2-sol','gpt-6-astra','gpt-6.1-sol'], 'openai', true).concat(rows(['gpt-6.1-terra','gpt-6-sol','gpt-6-luna'], 'openai-none', true)) },
         claude: { sources: ['https://platform.claude.com/docs/en/models/overview','https://platform.claude.com/docs/en/about-claude/model-deprecations','https://platform.claude.com/docs/en/build-with-claude/effort'], models: rows(['claude-fable-5-2','claude-fable-5-1','claude-opus-5-5','claude-sonnet-5-5','claude-haiku-5-5'], 'claude', true) },
-        gemini: { sources: ['https://ai.google.dev/gemini-api/docs/models','https://ai.google.dev/gemini-api/docs/thinking','https://ai.google.dev/gemini-api/docs/generate-content/thinking','https://ai.google.dev/gemini-api/docs/changelog','https://ai.google.dev/gemini-api/docs/deprecations'], models: rows(['gemini-4-hydrogen','gemini-4-neon'], 'gemini-xhigh', true).concat(rows(['gemini-4-carbon','gemini-4-argon','gemini-3.8-flash'], 'gemini', true), rows(['gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3.1-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.5-flash-lite'], '', true)), note: '预览版可能变更；2.5 系列仅部分已有账号可用。' },
+        gemini: { sources: ['https://ai.google.dev/gemini-api/docs/models','https://ai.google.dev/gemini-api/docs/thinking','https://ai.google.dev/gemini-api/docs/generate-content/thinking','https://aistudio.google.com/docs/changelog','https://aistudio.google.com/docs/deprecations'], models: rows(['gemini-4-hydrogen','gemini-4-neon'], 'gemini-xhigh', true).concat(rows(['gemini-4-carbon','gemini-4-argon','gemini-3.8-flash'], 'gemini', true), rows(['gemini-3.6-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3.1-pro-preview','gemini-3-flash-preview','gemini-2.5-pro','gemini-2.5-flash','gemini-2.5-flash-lite'], '', true)), note: '2.5 Pro 和 2.5 Flash 仅对符合条件的既有项目开放，2026-12-01 起分别转到 3.8 Flash 和 3.5 Flash-Lite 并按新型号计费。预览版可能变更。' },
         deepseek: { sources: ['https://api-docs.deepseek.com/api/list-models/','https://api-docs.deepseek.com/updates/','https://api-docs.deepseek.com/guides/thinking_mode/','https://api-docs.deepseek.com/zh-cn/api/create-chat-completion/'], models: rows(['deepseek-flash'], 'deepseek', true).concat(rows(['deepseek-v4-pro'], 'deepseek', false)) },
         xiaomi: { sources: ['https://mimo.mi.com/docs/zh-CN/quick-start/summary/model','https://mimo.mi.com/docs/zh-CN/updates/model','https://mimo.mi.com/docs/en-US/updates/model','https://mimo.mi.com/docs/zh-CN/updates/deprecate','https://mimo.mi.com/docs/zh-CN/api/chat/openai-api'], models: rows(['mimo-v2.6-pro','mimo-v2.6-flash','mimo-v2.6-pro-ultraspeed'], 'thinking', true), note: 'UltraSpeed 需相应权限；10 月 21 日按公告下线的 2.5 系列不列入快捷选项。' },
         kimi: { sources: ['https://platform.kimi.com/docs/models','https://platform.kimi.com/docs/guide/use-thinking-models','https://platform.kimi.com/docs/guide/use-reasoning-effort','https://www.kimi.com/help/kimi-api/api-troubleshooting'], models: rows(['kimi-k3.1-pro','kimi-k3'], 'effort-three', true).concat(rows(['kimi-k2.6'], 'thinking', true), rows(['kimi-k3.1-pro-highspeed','kimi-k2.7-code','kimi-k2.7-code-highspeed'], '', true)), note: 'K3 和 K2.7 Code 始终思考；K2.6 可关闭思考。K2 系列自2026-10-31起不向新注册账号开放；已有账号按公告过渡，官方计划12月底下线K2系列。' },
@@ -8889,11 +8889,51 @@ startxref
   slots.sort((a,b)=>a.number-b.number);
   return slots.length>0&&slots.length<=20&&slots.every((slot,index)=>slot.number===index+1) ? slots : null;
  }
+ function readingEntries(node,title,number,form){
+  const groups=node.querySelectorAll(':scope > .readComprehensionQues');
+  if(!title||groups.length!==1)return null;
+  const group=groups[0],items=[...group.children];
+  const media='img,svg,math,canvas,audio,video,iframe,object,embed';
+  if(!items.length||title.querySelector(media)||group.querySelector(media))return null;
+  const passage=title.innerText.replace(/^\s*\d+\s*[.．、]\s*/,'').replace(/^\s*[（(]阅读理解[）)]\s*/,'').trim();
+  if(!passage)return null;
+  const entries=[];
+  for(const [index,item] of items.entries()){
+   const headings=item.querySelectorAll(':scope > .reader_answer_tit');
+   const heading=headings[0],kind=plain(heading?.querySelector(':scope > .read_type'));
+   const fields=item.querySelectorAll(':scope > input[type="hidden"]');
+   const field=fields[0],stems=item.querySelectorAll(':scope > .stem_answer');
+   if(!item.matches('.reading_answer[qtype="0"]')||headings.length!==1||!/^[（(]?单选题[）)]?$/.test(kind)||
+      fields.length!==1||field.form!==form||field.disabled||stems.length!==1)return null;
+   const rows=[...stems[0].children];
+   const qid=rows[0]?.getAttribute('qid')||'';
+   if(!/^[A-Za-z0-9_-]{1,64}$/.test(qid)||rows.length<2||rows.length>20||
+      rows.some(row=>!row.matches('.hoverDiv[qtype="15"]')||row.getAttribute('qid')!==qid||
+       !/^\s*(?:return\s+)?addChoice\s*\(/.test(row.getAttribute('onclick')||'')))return null;
+   const options=rows.map(row=>{
+    const markers=row.querySelectorAll(':scope > .num_option[data]');
+    const bodies=row.querySelectorAll(':scope > .answer_p');
+    const key=markers.length===1?markers[0].getAttribute('data'):'';
+    return {key:plain(markers[0])===key?key:'',text:bodies.length===1?plain(bodies[0]):''};
+   });
+   const stem=heading.innerText.replace(/^\s*[（(]\s*\d+\s*[）)]\s*/,'').replace(/^\s*[（(]单选题[）)]\s*/,'').trim();
+   if(!stem||options.some(option=>!/^[A-T]$/.test(option.key)||!option.text)||
+      new Set(options.map(option=>option.key)).size!==options.length)return null;
+   entries.push({element:item,title:heading,rows,readingField:field,question:{
+    id:'reading-'+qid,number:number+'.'+(index+1),type:'single',
+    text:'阅读材料：\n'+passage+'\n\n小题：\n'+stem,options
+   }});
+  }
+  return entries;
+ }
  function scan(doc){
   const form=doc.querySelector('.fanyaMarking #submitForm');if(!form)return[];
-  return [...form.querySelectorAll('.questionLi.singleQuesId[id^="question"]')].filter(node=>!node.parentElement?.closest('.questionLi')).map(node=>{
+  return [...form.querySelectorAll('.questionLi.singleQuesId[id^="question"]')].filter(node=>!node.parentElement?.closest('.questionLi')).flatMap(node=>{
    const title=node.querySelector(':scope > h3.mark_name'),kind=plain(title?.querySelector('.colorShallow'));
    const id=node.id,number=node.getAttribute('aria-label')?.match(/题目\s*(\d+)/)?.[1]||plain(title).match(/^(\d+)\./)?.[1]||id;
+   if(node.getAttribute('typename')==='阅读理解'||/^[（(]?阅读理解[）)]?$/.test(kind)){
+    return readingEntries(node,title,number,form)||{element:node,title,rows:[],question:{id,number,type:'unsupported',text:plain(title),options:[]}};
+   }
    const rows=[...node.querySelectorAll(':scope > .stem_answer.qtDetail > .answerBg[role="radio"],:scope > .stem_answer.qtDetail > .answerBg[role="checkbox"]')];
    const richSlots=/填空题/.test(kind)?richBlanks(node):null;
    const richLayout=node.querySelector(':scope > .stem_answer .blankItemDiv .textDIV');
@@ -8997,14 +9037,28 @@ startxref
    prior[index]=comparable(value);
   }
  }
- function choices(entry){
-  const marked=entry.rows.flatMap((row,i)=>{
+ function markedChoices(entry){
+  return entry.rows.flatMap((row,i)=>{
    const input=row.querySelector('input[type="radio"],input[type="checkbox"]'),marker=row.querySelector('.num_option,.num_option_dx');
    return input?.checked||row.getAttribute('aria-checked')==='true'||row.classList.contains('check_answer')||row.classList.contains('check_answer_dx')||marker?.classList.contains('check_answer')||marker?.classList.contains('check_answer_dx')?[entry.question.options[i].key]:[];
-  });
+  }).sort();
+ }
+ function choices(entry){
+  const marked=markedChoices(entry);
+  if(entry.readingField){
+   const field=entry.readingField;
+   const fields=entry.element.querySelectorAll(':scope > input[type="hidden"]');
+   if(!entry.element.isConnected||fields.length!==1||fields[0]!==field||
+      field.disabled||!field.form||field.form!==entry.element.closest('form'))
+    throw Error('阅读理解第 '+entry.question.number+' 小题的作答字段已变化，请人工核对。');
+   const value=field.value.trim();
+   if(!value&&!marked.length)return [];
+   if(marked.length===1&&marked[0]===value)return marked;
+   throw Error('阅读理解第 '+entry.question.number+' 小题的页面选项与作答字段不一致，请人工核对。');
+  }
   const field=entry.element.querySelector('input[type="hidden"][id="answer'+entry.element.id.slice('question'.length)+'"]');
   const value=String(field?.value||'').trim();
-  if(marked.length)return marked.sort();
+  if(marked.length)return marked;
   if(!value)return[];
   if(/^[A-T]+$/.test(value)&&[...value].every(k=>entry.question.options.some(o=>o.key===k)))return[...value].sort();
   if(entry.question.type==='boolean'&&/^(true|false)$/i.test(value))return entry.question.options.filter(o=>(value.toLowerCase()==='true'?/^(对|正确|√)$/:/^(错|错误|×)$/).test(o.text)).map(o=>o.key);
@@ -9142,7 +9196,7 @@ startxref
   const actions=document.createElement('div');
   for(const[action,label]of[['connect','测试 AI'],['start','开始自动'],['solve','预览 AI 答案'],['stop','停止']]){const b=document.createElement('button');b.type='button';b.dataset.action=action;b.textContent=label;actions.append(b);}
   output=document.createElement('pre');output.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0';
-  const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='作业处理说明';details.append(summary);const note=document.createElement('p');note.textContent='只处理当前打开的作业，不自动切换下一份。高级选词填空、共享文章子题等仍待相应真实结构适配。目录完成或提交提示不等于满分。';details.append(note);
+  const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='作业处理说明';details.append(summary);const note=document.createElement('p');note.textContent='只处理当前打开的作业，不自动切换下一份。已适配的文字阅读理解会按小题处理，高级选词填空和其他阅读题结构仍需人工处理。目录完成或提交提示不等于满分。';details.append(note);
   const adapter=A.create({doc:document,identity,assertCurrent:guard,policy:settings,readState:readSubmission,writeState:writeSubmission});
   controller=H.createController({adapter,ask,notify,changed:value=>{wasBusy=value;}});
   const action=operation=>async state=>{try{return await operation(state);}catch(error){notify(error?.message||'作业操作未完成，请检查设置后重试。');throw error;}};

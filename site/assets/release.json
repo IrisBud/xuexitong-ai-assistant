@@ -1,5 +1,10 @@
 {
-  "version": "1.8.8",
+  "version": "1.8.10",
+  "date": "2026-11-28",
+  "channel": "stable",
+  "changes": [
+    "独立作业支持已采集的文字阅读理解单选结构。每道小题带上共享文章，填写后核对选项和作答字段。"
+  ],
   "repository": "https://github.com/IrisBud/xuexitong-ai-assistant",
-  "download": "https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js"
+  "download": "https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest/download/xuexitong-ai-assistant.user.js"
 }

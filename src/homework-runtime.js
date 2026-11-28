@@ -54,7 +54,7 @@
   const actions=document.createElement('div');
   for(const[action,label]of[['connect','测试 AI'],['start','开始自动'],['solve','预览 AI 答案'],['stop','停止']]){const b=document.createElement('button');b.type='button';b.dataset.action=action;b.textContent=label;actions.append(b);}
   output=document.createElement('pre');output.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0';
-  const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='作业处理说明';details.append(summary);const note=document.createElement('p');note.textContent='只处理当前打开的作业，不自动切换下一份。高级选词填空、共享文章子题等仍待相应真实结构适配。目录完成或提交提示不等于满分。';details.append(note);
+  const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='作业处理说明';details.append(summary);const note=document.createElement('p');note.textContent='只处理当前打开的作业，不自动切换下一份。已适配的文字阅读理解会按小题处理，高级选词填空和其他阅读题结构仍需人工处理。目录完成或提交提示不等于满分。';details.append(note);
   const adapter=A.create({doc:document,identity,assertCurrent:guard,policy:settings,readState:readSubmission,writeState:writeSubmission});
   controller=H.createController({adapter,ask,notify,changed:value=>{wasBusy=value;}});
   const action=operation=>async state=>{try{return await operation(state);}catch(error){notify(error?.message||'作业操作未完成，请检查设置后重试。');throw error;}};

@@ -1,6 +1,6 @@
 {
   "name": "xuexitong-ai-assistant",
-  "version": "1.8.9",
+  "version": "1.8.10",
   "private": true,
   "description": "超星学习通自动化脚本（支持接入各种主流AI模型api）",
   "scripts": {
@@ -41,7 +41,7 @@
     "test:captcha": "node tests/verify-captcha-guard.mjs",
     "test:discussion": "node tests/verify-discussions.mjs",
     "test:course-discussion": "node tests/verify-course-discussion.mjs",
-    "test:homework": "node tests/verify-homework-observed-dom.mjs && node tests/verify-homework-adapter.mjs && node tests/verify-homework-runtime.mjs && node tests/verify-homework-real-choices.mjs",
+    "test:homework": "node tests/verify-homework-observed-dom.mjs && node tests/verify-homework-adapter.mjs && node tests/verify-homework-runtime.mjs && node tests/verify-homework-real-choices.mjs && node tests/verify-homework-reading.mjs",
     "test:exam": "node tests/verify-exam.mjs",
     "test:short-answer": "node tests/verify-short-answer-settings.mjs && node tests/verify-short-answer-workflow.mjs && node tests/verify-short-answer-nested.mjs",
     "test:tab-mute": "node tests/verify-tab-mute.mjs",

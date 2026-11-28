@@ -81,8 +81,8 @@
             return entry&&D.reviewOptions(entry);
         });
     }
-    function writeReport(items, at, entries){
-        const report={scope:key,paper:D.paperKey(entries),at,items,submitted:pending()};
+    function writeReport(items, at, entries, confidenceThreshold){
+        const report={scope:key,paper:D.paperKey(entries),at,confidenceThreshold,items,submitted:pending()};
         GM_setValue(reportKey,report);
         showReport(report,entries);
         return report;
@@ -102,9 +102,10 @@
     function answerLabel(q,answer){
         return (answer?.texts||answer?.choices?.map(value=>`${value} · ${q.options.find(o=>o.key===value)?.text||''}`)||[]).join('；');
     }
-    function viewItem(q, answer, problem=''){
+    function viewItem(q, answer, confidenceThreshold, problem=''){
+        const hasAnswer=Boolean(answer?.texts?.length||answer?.choices?.length);
         return {id:q.id,number:q.number,stem:q.text,type:q.type,image:Boolean(q.imageKey),options:q.options.map(({key,text})=>({key,text})),confidence:answer?.confidence??null,
-            answer:answerLabel(q,answer), review:Boolean(problem||!answer?.readable||answer.confidence<0.8||!answer.explanation.trim()),
+            answer:answerLabel(q,answer), review:Boolean(problem||!answer?.readable||!hasAnswer||answer.confidence<confidenceThreshold/100||!answer.explanation.trim()),
             explanation:[problem,answer?.explanation].filter(Boolean).join('\n')||'AI 未提供理由，请核对。'};
     }
     function approveItem(item,q,answer){
@@ -145,6 +146,9 @@
     }
     function restoreReview(item,saved){
         if(!saved)return item;
+        // Earlier runs stored low confidence as the model's original explanation.
+        // A different reason can record a failed write or a conflicting answer.
+        if(!item.review&&saved.reason===item.explanation)return item;
         return {...item,review:true,explanation:saved.reason,secondPass:saved.secondPass};
     }
     async function reviewPending(entries,items,subject,settings,progress){
@@ -153,6 +157,7 @@
         for(const item of items){
             if(!item.review||item.saveIssue)continue;
             const record=progress.reviews[item.id]??={reason:item.explanation};
+            record.reason=item.explanation;
             if(record.checked)continue;
             pendingItems.set(item.id,item);
         }
@@ -161,7 +166,7 @@
             try {XxtCodexCore.validateQuestions([q]);return true;} catch {return false;}
         });
         GM_setValue(progressKey,progress);
-        writeReport(items,subject.at,entries);
+        writeReport(items,subject.at,entries,settings.confidenceThreshold);
         if(settings.strong&&!settings.files.length)return;
         for(let offset=0;offset<eligible.length;offset+=3){
             check(subject);
@@ -183,12 +188,13 @@
                 pendingItems.get(q.id).secondPass=secondPass;
             }
             GM_setValue(progressKey,progress);
-            writeReport(items,subject.at,entries);
+            writeReport(items,subject.at,entries,settings.confidenceThreshold);
         }
     }
     async function solve(entries,subject,settings,progress){
         const rows=new Map(), answers=new Map();
         const eligible=[];
+        const {confidenceThreshold}=settings;
         let reused=0;
         for(const entry of entries){
             const q=entry.question, prior=progress.answers[q.id], approved=progress.approved[q.id], review=progress.reviews[q.id];
@@ -196,25 +202,25 @@
                 reused++;
                 const matches=D.matches(entry,approved);
                 if(matches)answers.set(q.id,approved);
-                const item={...viewItem(q,prior,matches?'':'页面作答与人工确认记录不同，请重新复查。'),secondPass:review?.secondPass};
+                const item={...viewItem(q,prior,confidenceThreshold,matches?'':'页面作答与人工确认记录不同，请重新复查。'),secondPass:review?.secondPass};
                 rows.set(q.id,matches?approveItem(item,q,approved):item);
                 continue;
             }
             if(prior||review){
                 reused++;
                 if(prior)answers.set(q.id,prior);
-                rows.set(q.id,restoreReview(viewItem(q,prior),review));
+                rows.set(q.id,restoreReview(viewItem(q,prior,confidenceThreshold),review));
                 continue;
             }
             try {
                 if(q.type==='unsupported')throw Error('此题的作答控件尚未适配，请手动处理。');
                 XxtCodexCore.validateQuestions([q]);
                 eligible.push(entry);
-            } catch(error){rows.set(q.id,viewItem(q,null,error.message));}
+            } catch(error){rows.set(q.id,viewItem(q,null,confidenceThreshold,error.message));}
         }
         const checkpoint=()=>{
             GM_setValue(progressKey,progress);
-            writeReport(entries.map(({question})=>rows.get(question.id)).filter(Boolean),subject.at,entries);
+            writeReport(entries.map(({question})=>rows.get(question.id)).filter(Boolean),subject.at,entries,confidenceThreshold);
         };
         if(eligible.length&&settings.strong&&!settings.files.length)throw Error('请先导入知识文件，或取消勾选强相关。已保存的进度会保留。');
         if(!eligible.length)checkpoint();
@@ -229,7 +235,7 @@
                 const {answer,problem,attempted}=results.get(q.id);
                 if(answer)answers.set(q.id,answer);
                 if(!problem&&answer?.readable&&answer.explanation.trim())progress.answers[q.id]=answer;
-                const item=viewItem(q,answer,problem);
+                const item=viewItem(q,answer,confidenceThreshold,problem);
                 if(item.review&&(answer||attempted))progress.reviews[q.id]={reason:item.explanation};
                 rows.set(q.id,item);
             }
@@ -283,8 +289,8 @@
         const progress=loadProgress(entries);
         const {rows,answers}=await solve(entries,subject,settings,progress);
         check(subject);
-        const items=entries.map(({question:q})=>rows.get(q.id)||viewItem(q,null,'这一题没有返回可用结果。'));
-        writeReport(items,subject.at,entries);
+        const items=entries.map(({question:q})=>rows.get(q.id)||viewItem(q,null,settings.confidenceThreshold,'这一题没有返回可用结果。'));
+        writeReport(items,subject.at,entries,settings.confidenceThreshold);
         if(readOnly||settings.answer==='manual'){
             await reviewPending(entries,items,subject,settings,progress);
             if(!view.revealReview())view.revealReport();
@@ -316,7 +322,7 @@
                 item.review=true;item.explanation+='\n'+error.message;
                 if(error.code==='EXAM_SAVE')item.saveIssue=true;
                 if(full!==snapshot(D.scan())){
-                    writeReport(items,subject.at,current);
+                    writeReport(items,subject.at,current,settings.confidenceThreshold);
                     throw Error('试卷内容已变化，请重新核对。');
                 }
             }
@@ -345,7 +351,7 @@
             notice(`已核对 ${filled} 题。还有 ${pendingSummary}，请在面板里确认作答。自动交卷已停止。`);
             return;
         }
-        writeReport(items,subject.at,fresh);
+        writeReport(items,subject.at,fresh,settings.confidenceThreshold);
         view.revealReport();
         if(settings.submit==='auto')await autoSubmit(fresh,answers,subject);
         else notice(`已核对 ${filled} 题，请查看作答理由并手动交卷。`);
@@ -395,7 +401,7 @@
                 progress.approved[id]=answer;
                 delete progress.partial[id];
                 GM_setValue(progressKey,progress);
-                writeReport(report.items.map(row=>row===item?approveItem(row,entry.question,answer):row),report.at,entries);
+                writeReport(report.items.map(row=>row===item?approveItem(row,entry.question,answer):row),report.at,entries,report.confidenceThreshold);
                 const remaining=report.items.filter(row=>row!==item&&row.review).length;
                 notice(`已确认第 ${item.number} 题。${remaining?`还有 ${remaining} 题待复查。`:'复查已完成，可核对整卷后交卷。'}`);
             });

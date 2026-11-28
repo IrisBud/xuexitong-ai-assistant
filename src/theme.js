@@ -3,7 +3,7 @@
     const css = XxtGlassCss;
     const vault=()=>XxtProfiles.create(GM_getValue,GM_setValue);
     const profilesChanged=()=>document.dispatchEvent(new Event('xxt-profiles-changed'));
-    const skins={nailoong:['奶龙','奶龙·学习助手'],naiwa:['奶蛙','奶蛙·学习助手'],ridge:['山行','山行·学习助手'],tide:['潮汐','潮汐·学习助手']};
+    const skins={nailoong:['奶龙','奶龙·学习助手'],naiwa:['奶蛙','奶蛙·学习助手'],ridge:['山行','山行·学习助手'],tide:['潮汐','潮汐·学习助手'],rainbow:['彩虹','彩虹·学习助手']};
     const readPreference=()=>GM_getValue('xxt-ui-preference',GM_getValue('xxt-ui-skin','default')==='default'?'auto':GM_getValue('xxt-ui-skin','default'));
     function ensureStyles(){
         if(document.querySelector('style[data-xxt-theme-styles]'))return;
@@ -27,7 +27,7 @@
         if(!scene)return;
         scene.replaceChildren();
         if(skin.startsWith('ai-')){const art=figure(id,0);art?.setAttribute('preserveAspectRatio','xMidYMin meet');if(art)scene.append(art);}
-        else if(Object.hasOwn(skins,skin)){const image=document.createElement('img');image.src=XxtThemeAssets[skin];image.alt='';image.draggable=false;scene.append(image);}
+        else if(Object.hasOwn(XxtThemeAssets,skin)){const image=document.createElement('img');image.src=XxtThemeAssets[skin];image.alt='';image.draggable=false;scene.append(image);}
     }
     function figure(id,index=1){
         const asset=typeof XxtPersonaAssets==='undefined'?null:XxtPersonaAssets[id];if(!asset)return null;
@@ -233,7 +233,7 @@
             if(painted===skin)return;painted=skin;scene.replaceChildren();mascot.replaceChildren();
             if(skin.startsWith('ai-')){const background=figure(id,0);background.setAttribute('preserveAspectRatio','xMidYMin meet');scene.append(background);mascot.append(figure(id,1));mascot.hidden=false;}
             else if(['ridge','tide'].includes(skin)){const landscape=document.createElement('img');landscape.src=XxtThemeAssets[skin];landscape.alt='';landscape.draggable=false;scene.append(landscape);mascot.hidden=true;}
-            else if(skins[skin]){mascotImage.src=XxtThemeAssets[skin];mascot.append(mascotImage);mascot.hidden=false;}
+            else if(Object.hasOwn(XxtThemeAssets,skin)){mascotImage.src=XxtThemeAssets[skin];mascot.append(mascotImage);mascot.hidden=false;}
             else mascot.hidden=true;
             document.dispatchEvent(new Event('xxt-theme-changed'));
         }
@@ -365,7 +365,7 @@
         const authorNote = document.createElement('div'); authorNote.textContent = '脚本根据作者自己的实际使用需求编写，并持续完善。遇到暂不支持的场景，或有希望增加的功能，欢迎及时反馈；作者会第一时间跟进，评估后补充相应设置和功能。';
         feedbackCopy.append(authorNote,feedbackNote,privacyNote); feedbackDetails.append(feedbackSummary,feedbackCopy);
         feedback.append(feedbackLinks,feedbackDetails);
-        const support=document.createElement('a');support.textContent='♥ 支持作者';support.href='https://github.com/IrisBud/xuexitong-ai-assistant/blob/main/docs/SUPPORT.md';support.target='_blank';support.rel='noopener noreferrer';feedbackLinks.append(support);
+        const support=document.createElement('a');support.textContent='支持作者';support.href='https://github.com/IrisBud/xuexitong-ai-assistant/blob/main/docs/SUPPORT.md';support.target='_blank';support.rel='noopener noreferrer';feedbackLinks.append(support);
         const profiles=profileManager(onAiChange),updates=XxtUpdates.create({bannerHost:shell});
         actions.className = 'xxt-actions'; body.append(actions,status,statusCard,foregroundNote,modeLabel,modeNote,selectedSummary,routingNote,aiForm,profiles,settings,details,...(runLog ? [runLog] : []),...(savedLog?[savedLog]:[]),updates,feedback); header.append(name); shell.append(scene,header,verificationNotice,picker,themeFeedback,body); panel.replaceChildren(shell,mascot,fold);
         const positionScene=()=>{
@@ -375,7 +375,7 @@
         };
         const scenePosition=new ResizeObserver(positionScene);scenePosition.observe(body);window.addEventListener('pagehide',()=>scenePosition.disconnect(),{once:true});
         if(studyControls&&globalThis.XxtHomework)status.homeworkUI=XxtHomework.mount({panel,host:body,actions,chapterNodes:[rateLabel,advanceLabel,advanceHint,forceLabel,mutedLabel,duration,forceHint,audioHint,shortAnswerControls,discussionControls,runLog,savedLog],onChange:onAiChange,onReview:homeworkCallbacks.review||(()=>{throw Error('请手动打开作业页后复查。');}),onRun:homeworkCallbacks.run,onPreview:homeworkCallbacks.preview,examCallbacks,read:()=>GM_getValue('xxt-homework-settings',{}),write:v=>GM_setValue('xxt-homework-settings',v)});
-        globalThis.XxtPanelLayout?.attach(panel,{actions,status,statusCard,foregroundNote,settings,modeLabel,modeNote,selectedSummary,routingNote,aiForm,profiles,details,runLog,savedLog,picker,themeFeedback,updates,feedback});
+        globalThis.XxtPanelLayout?.attach(panel,{actions,status,statusCard,foregroundNote,settings,modeLabel,modeNote,selectedSummary,routingNote,aiForm,profiles,details,runLog,savedLog,picker,themeFeedback,updates,feedback,support});
         for(const node of panel.querySelectorAll('.xxt-fixed-controls,.xxt-workspace-grid'))scenePosition.observe(node);
         positionScene();
         applySkin();

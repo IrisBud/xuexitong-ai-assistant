@@ -2,7 +2,7 @@
 
 从 **1.0.9** 起，脚本内置油猴更新地址和面板更新入口。安装旧版的用户需要先升级一次，才能获得新入口。
 
-旧仓库安装的版本仍保存旧更新地址。请从 [新仓库安装入口](https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js) 覆盖原脚本，再刷新课程页。原脚本名称和 namespace 相同，可保留已有设置。
+旧仓库安装的版本仍保存旧更新地址。请从 [新仓库安装入口](https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest/download/xuexitong-ai-assistant.user.js) 覆盖原脚本，再刷新课程页。原脚本名称和 namespace 相同，可保留已有设置。
 
 ## 在油猴更新
 
@@ -14,7 +14,7 @@
 如果像旧版一样，“更新 URL”为空，可填入以下地址，点击 **保存**，再检查更新：
 
 ```text
-https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.meta.js
+https://irisbud.github.io/xuexitong-ai-assistant/assets/xuexitong-ai-assistant.meta.js
 ```
 
 如果这个地址框是灰色、不能编辑，请直接按本文最后的 ZIP 方法覆盖升级原脚本。新版代码会自带更新地址，无需改浏览器或油猴扩展的权限。
@@ -22,7 +22,7 @@ https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexi
 完整脚本下载地址：
 
 ```text
-https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexitong-ai-assistant.user.js
+https://github.com/IrisBud/xuexitong-ai-assistant/releases/latest/download/xuexitong-ai-assistant.user.js
 ```
 
 `.meta.js` 只用于检查版本，不要把它复制成脚本运行。脚本名称和 namespace 保持一致，更新时覆盖原脚本；请保留原脚本及其设置，不要先删除后新建。
@@ -31,18 +31,14 @@ https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexi
 
 展开 **脚本更新**，点击 **检查更新**。发现新版本后显示该版本的更新内容和 **更新至版本号** 按钮。点击按钮打开脚本地址，由油猴接管安装；仍需在油猴页面确认，课程页面里的脚本不能静默替换已安装代码。
 
-检查失败只在更新区提示，不停止课程流程，不调用 AI 或消耗模型额度。检查只向固定 GitHub Raw 地址读取小型公开版本文件，不包含 Key、课程链接、截图、答题信息或日志。
+检查失败只在更新区提示，不停止课程流程，不调用 AI 或消耗模型额度。检查先访问 GitHub Raw，失败时通过使用手册的固定备用地址读取公开版本文件，不包含 Key、课程链接、截图、答题信息或日志。
 
-## 仅在 WLAN 自动检查
+## 自动检查更新
 
-此选项默认关闭。勾选 **仅 WLAN 自动检查更新（每 2 小时）** 后：
+默认关闭。可以在面板里选择「仅 WLAN」或「联网时」。旧版已勾选「仅 WLAN」的设置会保留。仅 WLAN 要求浏览器明确报告 Wi-Fi，桌面浏览器无法报告时可改选「联网时」。可见页面且联网时每两小时最多自动尝试一次，节省流量时暂停。手动检查可用当前网络。
 
-- 页面运行且可见、浏览器明确报告 `wifi` 时才自动检查；每 2 小时最多尝试一次，刷新不重置间隔。
-- 离线、节省流量、蜂窝网络、以太网或连接类型不明确时，不自动请求。
-- 部分桌面浏览器不提供 WLAN 类型，此时会说明“浏览器未提供 WLAN 类型”。请在自己确认可用的网络下手动检查。`effectiveType: 4g` 仅代表网络质量估计，不能证明使用 WLAN。
-- 手动点击检查会使用当前网络，不受自动检查的类型限制；离线时仍不发送请求。
+面板的自动检查设置与油猴自身的更新计划分别管理。如果旧版仍使用不可达的 Raw 地址，打开 GitHub 最新发行中的脚本附件覆盖原脚本一次，之后油猴会通过手册地址读取版本。
 
-**该开关只控制本面板。**油猴自己的后台更新计划独立运行，不受此开关限制。若要求所有后台检查都经本面板判断，应自行调整油猴的自动检查设置。
 
 ## 只显示最新更新内容
 
@@ -69,7 +65,7 @@ https://raw.githubusercontent.com/IrisBud/xuexitong-ai-assistant/main/dist/xuexi
 
 ## 顶部新版本提醒
 
-检查到比当前安装版本更高的版本后，面板最上方会显示版本号和更新入口；折叠面板主体时仍可看到横幅。点击“查看并更新”打开油猴更新页，仍由你确认安装。点击 × 会关闭这一个版本的顶部提醒；“稍后提醒”延后 6 小时，之后检查时可以再次显示。关闭或延后都不停止课程、不刷新页面，也不影响“脚本更新”中的手动入口。只有启用且浏览器明确识别为 WLAN 时，面板才会自动检查；不能识别网络类型时请手动检查，油猴自身的更新计划另由油猴管理。
+检查到比当前安装版本更高的版本后，面板最上方会显示版本号和更新入口；折叠面板主体时仍可看到横幅。点击“查看并更新”打开油猴更新页，仍由你确认安装。点击 × 会关闭这一个版本的顶部提醒；“稍后提醒”延后 6 小时，之后检查时可以再次显示。关闭或延后都不停止课程、不刷新页面，也不影响“脚本更新”中的手动入口。面板会按所选的自动检查条件运行，油猴自身的更新计划由油猴管理。
 
 ## 1.5.16 的快捷入口
 

@@ -8,11 +8,28 @@
         ai: 'M5 7h5v10H5zM14 4h5v7h-5zM14 15h5v5h-5zM10 12h3V7h1M13 12v5h1',
         records: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4',
         more: 'M5 6h14M5 12h14M5 18h14M9 4v4M15 10v4M10 16v4',
+        support: 'M12 20s-8-4.5-8-10a4.5 4.5 0 0 1 8-2.8 4.5 4.5 0 0 1 8 2.8c0 5.5-8 10-8 10Z',
         update: 'M19 8a8 8 0 0 0-13-2L3 9m0-5v5h5M5 16a8 8 0 0 0 13 2l3-3m0 5v-5h-5'
     };
-    function icon(name) {
+    function icon(name, instanceId) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         for (const [k,v] of Object.entries({viewBox:'0 0 24 24',fill:'none',stroke:'currentColor','stroke-width':'1.6','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true'})) svg.setAttribute(k,v);
+        if(name==='support'){
+            const gradientId='xxt-support-gradient-'+instanceId;
+            const defs=document.createElementNS(svg.namespaceURI,'defs');
+            const gradient=document.createElementNS(svg.namespaceURI,'linearGradient');
+            gradient.id=gradientId;
+            gradient.setAttribute('x2','100%');gradient.setAttribute('y2','100%');
+            const colors=['#b64467','#c77437','#a7832c','#48835c','#4b73ab','#7852a0'];
+            for(const [index,color] of colors.entries()){
+                const stop=document.createElementNS(svg.namespaceURI,'stop');
+                stop.setAttribute('offset',String(index/(colors.length-1)));
+                stop.setAttribute('stop-color',color);
+                gradient.append(stop);
+            }
+            defs.append(gradient);svg.append(defs);
+            svg.style.setProperty('--xxt-support-stroke',`url("#${gradientId}")`);
+        }
         const path = document.createElementNS(svg.namespaceURI,'path');
         path.setAttribute('d',icons[name]); svg.append(path); return svg;
     }
@@ -24,7 +41,8 @@
         [data-workspace] .xxt-shell{height:min(850px,calc(100dvh - 112px));max-height:calc(100dvh - 112px)}
         [data-workspace][data-layout-collapsed=true] .xxt-shell{height:auto}
         [data-workspace] .xxt-head{flex:0 0 auto;padding-right:102px}
-        [data-workspace] .xxt-head .xxt-quick-update{position:absolute;right:57px;top:18px;width:32px;height:32px;padding:6px;display:grid;place-items:center;border-radius:10px;box-shadow:none;z-index:2}
+        [data-workspace]>.xxt-quick-update{position:absolute;right:57px;top:calc(var(--xxt-quick-header-top,0px) + 18px);width:32px;height:32px;padding:6px;display:grid;place-items:center;border-radius:10px;box-shadow:none;z-index:4}
+        [data-workspace][data-character]:not([data-character=''])>.xxt-quick-update{background:#233650;border-color:#92a4c47a}
         [data-workspace] .xxt-quick-update svg{width:19px;height:19px}
         [data-workspace] .xxt-quick-update[data-state=available]::after{content:'';position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
         [data-workspace] .xxt-quick-update[data-state=checking] svg{animation:xxt-update-check 1s linear infinite}
@@ -41,12 +59,17 @@
         [data-workspace] .xxt-status-top{margin-bottom:4px}
         [data-workspace] .xxt-status-card pre{font-size:12px!important;line-height:1.65!important;max-height:76px!important;overflow-y:auto!important;scrollbar-width:thin}
         [data-workspace] .xxt-workspace-grid{display:grid;grid-template-columns:52px minmax(0,1fr);gap:10px;min-height:0;flex:1}
-        [data-workspace] .xxt-workspace-nav{display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--line);padding-right:8px;min-width:0}
+        [data-workspace] .xxt-workspace-rail{min-width:0;min-height:0;border-right:1px solid var(--line)}
+        [data-workspace] .xxt-workspace-nav{display:flex;flex-direction:column;gap:6px;min-width:0}
         [data-workspace] .xxt-workspace-nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:44px;min-height:49px;padding:5px 3px;border:1px solid transparent;background:transparent;box-shadow:none;border-radius:11px;font-size:10px;color:var(--muted);transition:none}
         [data-workspace] .xxt-workspace-nav button svg{width:19px;height:19px}
         [data-workspace] .xxt-workspace-nav button[aria-selected=true]{background:var(--surface,#ffffff14);border-color:var(--line);color:var(--accent);box-shadow:inset 3px 0 var(--accent)}
         [data-workspace] .xxt-workspace-nav button:disabled{opacity:.4}
         [data-workspace] .xxt-workspace-nav button:focus-visible,[data-workspace] .xxt-quick-update:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+        [data-xxt-codex-panel] .xxt-workspace-support{display:grid;place-items:center;box-sizing:border-box;width:32px;height:32px;margin:7px 0 0 6px;border:1px solid transparent;border-radius:9px;color:var(--accent);text-decoration:none}
+        [data-xxt-codex-panel] .xxt-workspace-support svg{width:17px;height:17px}
+        [data-xxt-codex-panel] .xxt-workspace-support:hover,[data-xxt-codex-panel] .xxt-workspace-support:focus-visible{color:var(--accent);background:var(--surface,#ffffff14);border-color:var(--line)}
+        [data-xxt-codex-panel] .xxt-workspace-support:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
         [data-workspace] .xxt-workspace-pages{min-height:0;min-width:0;position:relative;display:flex;flex-direction:column}
         [data-workspace] .xxt-workspace-pane{min-height:0;min-width:0;flex:1;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable;scrollbar-width:thin;padding:0 4px 14px 0;outline-offset:-2px}
         [data-workspace] .xxt-workspace-pane>h3{font-size:13px;line-height:1.5;margin:2px 0 5px}
@@ -57,15 +80,25 @@
         [data-workspace] .xxt-workspace-pane .xxt-foreground-note{font-size:10px;padding:9px;margin:8px 0;line-height:1.7}
         [data-workspace] .xxt-workspace-pane .xxt-settings{margin-top:8px}
         [data-workspace] .xxt-layout-idle{font-size:11px;line-height:1.75;color:var(--muted);padding:12px 0}
+        @media(min-width:601px) and (max-height:720px){
+          [data-workspace] .xxt-workspace-rail{overflow-y:auto;scrollbar-width:none}
+          [data-workspace] .xxt-workspace-nav button:focus-visible{outline-offset:-2px}
+        }
         @media(max-width:600px){
           [data-xxt-codex-panel][data-workspace]{width:calc(100vw - 32px)!important;right:16px!important}
           [data-workspace] .xxt-head{padding:14px 98px 14px 14px}
-          [data-workspace] .xxt-head .xxt-quick-update{top:14px}
+          [data-workspace]>.xxt-quick-update{top:calc(var(--xxt-quick-header-top,0px) + 14px)}
           [data-workspace] .xxt-workspace-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:9px}
-          [data-workspace] .xxt-workspace-nav{flex-direction:row;border:0;border-bottom:1px solid var(--line);padding:0 0 7px;gap:3px}
-          [data-workspace] .xxt-workspace-nav button{flex:1;flex-direction:row;gap:4px;width:auto;min-height:36px;padding:5px 2px;font-size:10px}
+          [data-workspace] .xxt-workspace-rail{display:flex;align-items:center;gap:3px;border:0;border-bottom:1px solid var(--line);padding-bottom:7px;overflow:visible}
+          [data-workspace] .xxt-workspace-nav{flex:1;flex-direction:row;gap:3px}
+          [data-xxt-codex-panel] .xxt-workspace-support{flex:none;width:28px;height:36px;margin:0}
+          [data-workspace] .xxt-workspace-nav button{flex:1;flex-direction:row;gap:3px;width:auto;min-width:0;min-height:36px;padding:5px 2px;font-size:10px;white-space:nowrap}
           [data-workspace] .xxt-workspace-nav button svg{width:15px;height:15px}
           [data-workspace] .xxt-workspace-nav button[aria-selected=true]{box-shadow:inset 0 -2px var(--accent)}
+        }
+        @media(max-width:340px){
+          [data-workspace] .xxt-workspace-nav button{gap:2px;padding:5px 1px}
+          [data-workspace] .xxt-workspace-nav button svg{width:13px;height:13px;flex:none}
         }
         @media(prefers-reduced-motion:reduce){[data-workspace] .xxt-quick-update[data-state=checking] svg{animation:none}}
         `;
@@ -77,6 +110,7 @@
         const body=panel.querySelector('.xxt-body'),shell=panel.querySelector('.xxt-shell'),header=panel.querySelector('.xxt-head');
         const fixed=document.createElement('div'); fixed.className='xxt-fixed-controls';
         const grid=document.createElement('div'); grid.className='xxt-workspace-grid';
+        const rail=document.createElement('div');rail.className='xxt-workspace-rail';
         const nav=document.createElement('div');nav.className='xxt-workspace-nav';nav.setAttribute('role','tablist');nav.setAttribute('aria-label','学习助手工作区');
         const pages=document.createElement('div');pages.className='xxt-workspace-pages';
         const specs=[['study','学习','当前学习设置','常用操作与运行状态保持在上方。'],['course','课程','章节与课程队列','找章节、调整课程顺序；切换本区域不会自动开始。'],['ai','接口','文字 / 图片接口','配置、切换和测试你的模型。修改配置沿用原有停止规则。'],['records','记录','答案与待复核记录','预览不填写、不提交；保存与跳过记录各自保留。'],['more','更多','外观、更新与反馈','这些入口不会自行启动课程任务。']];
@@ -109,7 +143,16 @@
         move('records',[slots.details,slots.runLog,slots.savedLog]);
         move('more',[slots.picker,slots.themeFeedback,slots.updates,slots.feedback]);
         const empty=document.createElement('p');empty.className='xxt-layout-idle';empty.textContent='当前页面没有可用的章节目录。请进入具体课程学习页，再查看本区域。';panes.get('course').append(empty);
-        grid.append(nav,pages);body.append(fixed,grid);
+        rail.append(nav);
+        if(slots.support){
+            const {support}=slots;
+            support.className='xxt-workspace-support';
+            support.title=support.textContent;
+            support.setAttribute('aria-label',support.textContent);
+            support.replaceChildren(icon('support',id));
+            rail.append(support);
+        }
+        grid.append(rail,pages);body.append(fixed,grid);
         function placeHub(host){
             empty.hidden=true;
             const settings=host.querySelector('[data-hub-settings]');
@@ -128,7 +171,11 @@
         const previewObserver=new MutationObserver(records=>{for(const row of records)if(row.attributeName==='hidden'&&row.target.matches('[data-answer-preview]')&&!row.target.hidden)activate('records');});
         previewObserver.observe(panel,{subtree:true,attributes:true,attributeFilter:['hidden']});
         const modeObserver=new MutationObserver(()=>activate('study'));modeObserver.observe(panel,{attributes:true,attributeFilter:['data-study-mode']});
-        const quick=document.createElement('button');quick.type='button';quick.className='xxt-quick-update';quick.dataset.quickUpdate='true';quick.setAttribute('aria-label','检查脚本更新');quick.title='检查脚本更新';quick.append(icon('update'));header.append(quick);
+        const quick=document.createElement('button');quick.type='button';quick.className='xxt-quick-update';quick.dataset.quickUpdate='true';quick.setAttribute('aria-label','检查脚本更新');quick.title='检查脚本更新';quick.append(icon('update'));panel.append(quick);
+        const positionQuick=()=>panel.style.setProperty('--xxt-quick-header-top',Math.max(0,header.getBoundingClientRect().top-panel.getBoundingClientRect().top)+'px');
+        const headerObserver=new ResizeObserver(positionQuick);headerObserver.observe(header);
+        const updateBanner=shell.querySelector('[data-update-banner]');if(updateBanner)headerObserver.observe(updateBanner);
+        positionQuick();
         const check=slots.updates.querySelector('[data-update-check]'),output=slots.updates.querySelector('[data-update-status]');
         const fold=panel.querySelector('.xxt-fold'),originalFold=fold.onclick;
         function constrain(){
@@ -140,12 +187,12 @@
         const syncFold=()=>{panel.dataset.layoutCollapsed=String(body.hidden);fold.setAttribute('aria-expanded',String(!body.hidden));fold.setAttribute('aria-label',body.hidden?'展开面板':'收起面板');if(!body.hidden)queueMicrotask(constrain);};syncFold();
         fold.onclick=event=>{originalFold?.call(fold,event);syncFold();};
         quick.onclick=()=>{if(body.hidden){body.hidden=false;fold.textContent='−';fold.title='收起面板';syncFold();}activate('more');slots.updates.open=true;check.click();slots.updates.scrollIntoView({block:'nearest',behavior:'instant'});};
-        const refreshQuick=()=>{quick.disabled=check.disabled;quick.dataset.state=check.disabled?'checking':!slots.updates.querySelector('[data-update-install]').hidden?'available':/失败|超时|离线/.test(output.textContent)?'error':'idle';quick.title=check.disabled?'正在检查脚本更新…':output.textContent||'检查脚本更新';quick.setAttribute('aria-busy',String(check.disabled));};
+        const refreshQuick=()=>{quick.disabled=check.disabled;quick.dataset.state=check.disabled?'checking':/未能|失败|超时|离线/.test(output.textContent)?'error':!slots.updates.querySelector('[data-update-install]').hidden?'available':'idle';quick.title=check.disabled?'正在检查脚本更新…':output.textContent||'检查脚本更新';quick.setAttribute('aria-busy',String(check.disabled));};
         const updateObserver=new MutationObserver(refreshQuick);updateObserver.observe(slots.updates,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['disabled','hidden']});refreshQuick();
         const media=matchMedia('(max-width:600px)'),orientation=()=>nav.setAttribute('aria-orientation',media.matches?'horizontal':'vertical');orientation();media.addEventListener('change',orientation);
         window.addEventListener('resize',constrain);
         const api={activate,placeHub,placePreview,get active(){return active;}};instances.set(panel,api);
-        window.addEventListener('pagehide',()=>{if(closed)return;closed=true;lateObserver.disconnect();previewObserver.disconnect();modeObserver.disconnect();updateObserver.disconnect();media.removeEventListener('change',orientation);window.removeEventListener('resize',constrain);},{once:true});
+        window.addEventListener('pagehide',()=>{if(closed)return;closed=true;lateObserver.disconnect();previewObserver.disconnect();modeObserver.disconnect();updateObserver.disconnect();headerObserver.disconnect();media.removeEventListener('change',orientation);window.removeEventListener('resize',constrain);},{once:true});
         return api;
     }
     globalThis.XxtPanelLayout={attach,placeHub(panel,host){const ui=instances.get(panel);if(ui)ui.placeHub(host);else (panel.querySelector('.xxt-body')||panel).append(host);},placePreview(panel,box){const ui=instances.get(panel);if(ui)ui.placePreview(box);else panel.querySelector('.xxt-status-card').after(box);},activate(panel,key){instances.get(panel)?.activate(key);}};

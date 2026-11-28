@@ -69,7 +69,7 @@ try{
   checks.push({label:'checkbox-order-focus-and-start-state'});
 
   await main.locator('[data-workspace-tab=more]').click();
-  for(const skin of ['ridge','tide','nailoong','naiwa','default']){
+  for(const skin of ['ridge','tide','nailoong','naiwa','rainbow','default']){
     await main.bringToFront();
     if(skin!=='ridge')await main.locator(skin==='default'?'.xxt-theme-switch':'[data-skin-choice='+skin+']').click();
     await main.waitForFunction(s=>document.querySelector('[data-xxt-codex-panel]').dataset.skin===s,skin);

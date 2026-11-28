@@ -19,7 +19,9 @@ try{for(const id of ['ridge','tide'])for(const width of [1440,390,320]){
   const g=await panel.evaluate(p=>{const pane=p.querySelector('[data-workspace-pane]:not([hidden])'),r=p.getBoundingClientRect();return{tab:p.dataset.workspace,bodyOverflow:document.documentElement.scrollWidth-innerWidth,paneOverflow:pane.scrollWidth-pane.clientWidth,right:r.right,bottom:r.bottom,ink:getComputedStyle(p).color,accent:getComputedStyle(p).getPropertyValue('--accent').trim()}});
   assert(g.bodyOverflow<=1&&g.paneOverflow<=1,JSON.stringify(g));assert(g.right<=width&&g.bottom<=1050);assert.notEqual(g.ink,g.accent);geometry.push(g);
  }
- assert.equal(await panel.locator('[data-skin-choice]').count(),5);assert.equal(await panel.locator(`[data-skin-choice=${id}]`).getAttribute('aria-pressed'),'true');
+ const choices=await panel.locator('[data-skin-choice]').evaluateAll(buttons=>buttons.map(button=>button.dataset.skinChoice));
+ assert.deepEqual(choices,['default','nailoong','naiwa','ridge','tide','rainbow']);
+ assert.equal(await panel.locator(`[data-skin-choice=${id}]`).getAttribute('aria-pressed'),'true');
  await page.screenshot({path:fileURLToPath(new URL(`${id}-${width}-appearance.png`,out))});
  await panel.locator('[data-workspace-tab=study]').click();await page.screenshot({path:fileURLToPath(new URL(`${id}-${width}-chapter.png`,out))});
  await panel.locator('[data-setting=playback-rate]').selectOption('16');assert.equal(await page.locator('[data-rate-notice]').getAttribute('data-theme'),id);assert(await page.getByRole('button',{name:'恢复 1×（推荐）',exact:true}).isVisible());

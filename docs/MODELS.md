@@ -1,3 +1,39 @@
+# 2026-11-28 · 1.8.10 模型目录复核
+
+检查十家服务商的模型目录、变更、下线与推理参数来源，沿用 75 个模型 ID 和现有推理映射。部分直连页面超时或只返回入口，继续保留原有条目。账号与地域权限及部分关联变更尚未核实。本次未调用模型。
+
+- OpenAI 查阅目录及推理指南的 reasoning.effort 和 reasoning_effort。部分单型号、变更和弃用页面直连未取得完整正文。 [目录](https://developers.openai.com/api/docs/models) · [推理](https://developers.openai.com/api/docs/guides/reasoning)
+- Claude 查阅模型总览和弃用公告，Opus 4.5 与 Sonnet 4.5 的退役项未列在当前快捷目录。独立 effort 指南直连超时。 [模型](https://platform.claude.com/docs/en/models/overview) · [弃用](https://platform.claude.com/docs/en/about-claude/model-deprecations)
+- Gemini 用官方变更和弃用页面补查。2.5 Pro 与 2.5 Flash 从 12 月 1 日起分别转到 3.8 Flash 和 3.5 Flash-Lite，按新型号计费。保留既有配置并更新提示。复核 thinkingLevel 和 thinkingBudget。 [变更](https://aistudio.google.com/docs/changelog) · [弃用](https://aistudio.google.com/docs/deprecations) · [思考](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
+- DeepSeek 查阅更新及 Chat Completions 的推理参数。独立模型列表和思考指南直连超时。 [更新](https://api-docs.deepseek.com/updates/) · [接口](https://api-docs.deepseek.com/zh-cn/api/create-chat-completion/)
+- MiMo 核对 V2.6 目录及 Chat 接口。退役入口直连超时，使用官网的 V2.5 迁移公告补查。 [模型](https://mimo.mi.com/docs/zh-CN/quick-start/summary/model) · [接口](https://mimo.mi.com/docs/en-US/api/chat/openai-api-post) · [迁移公告](https://mimo.mi.com/docs/news/latest/llms.txt)
+- Kimi 用官方目录复核高速版 ID。K2.7 Code、K2.7 Code Highspeed 和 K2.6 已停止向新注册账号提供，官方预计 12 月底下线。 [目录](https://platform.kimi.com/docs/models) · [强度](https://platform.kimi.com/docs/guide/use-reasoning-effort)
+- 智谱阅读国内目录与国际推理指南。国内更新日志和国际 GLM-5.3 单型号入口未取得正文。 [目录](https://docs.bigmodel.cn/cn/guide/models) · [推理](https://docs.z.ai/guides/capabilities/thinking)
+- 百炼核对目录、上架、下线与 enable_thinking。 [目录](https://help.aliyun.com/zh/model-studio/models) · [上架](https://help.aliyun.com/zh/model-studio/newly-released-models) · [下线](https://help.aliyun.com/zh/model-studio/model-depreciation) · [推理](https://help.aliyun.com/zh/model-studio/deep-thinking/)
+- 火山方舟核对托管模型 ID、发布公告和各系列使用的思考参数。 [目录](https://docs.volcengine.com/docs/ark/model-list?lang=zh) · [公告](https://docs.volcengine.com/docs/ark/model-release-announcement?lang=zh) · [思考](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh)
+- 硅基流动核对已收录的托管 ID、公告和 Chat 接口参数。 [公告](https://docs.siliconflow.cn/docs/release-notes/overview) · [接口](https://docs.siliconflow.cn/docs/api/chat-completions-post)
+
+# 2026-11-27 · 1.8.9 发布日模型目录复核
+
+重新请求下表十家服务商的 48 个官方入口，核对现有 ID、上架、下线与所用推理字段。沿用 75 个对话 ID 和对应参数。Claude 弃用、Gemini 部分目录及变更、DeepSeek 模型列表、MiMo 部分入口、Kimi 部分推理页面和火山方舟的思考页面有直连未取得正文的情况。使用同服务商可读页面及前一日官方记录交叉核对，部分关联公告、FlashX 和各帐号地域权限仍未核实。未调用付费模型。
+
+## 2026-11-26 官方来源与首次核对
+
+重新查阅十家服务商的模型、变更、弃用和推理参数页面，共请求 48 个官方入口。保留现有 75 个对话 ID 和推理映射。百炼新上线的 decision-model 用于分类与打标，语音模型也未列入。智谱 GLM-5.3 FlashX 本轮所取页面未显示完整的 ID 和权限，暂沿用既有条目。账户权限和完整地域范围未验证，未调用付费接口。
+
+| 服务商 | 本次核对 |
+| --- | --- |
+| OpenAI | 核对 GPT ID、更新、弃用及推理档位。 [目录](https://developers.openai.com/api/docs/models) · [更新](https://developers.openai.com/api/docs/changelog) · [弃用](https://developers.openai.com/api/docs/deprecations) · [推理](https://developers.openai.com/api/docs/guides/reasoning) |
+| Claude | 核对 5.x ID、弃用和 effort。 [目录](https://platform.claude.com/docs/en/models/overview) · [更新](https://platform.claude.com/docs/en/release-notes/overview) · [弃用](https://platform.claude.com/docs/en/about-claude/model-deprecations) · [强度](https://platform.claude.com/docs/en/build-with-claude/effort) |
+| Gemini | 核对已收录 ID、弃用及 thinkingLevel、thinkingBudget。 [目录](https://aistudio.google.com/docs/models) · [更新](https://aistudio.google.com/docs/changelog) · [弃用](https://aistudio.google.com/docs/deprecations) · [推理](https://aistudio.google.com/docs/thinking) |
+| DeepSeek | 核对对话 ID 及思考模式。 [目录](https://api-docs.deepseek.com/api/list-models/) · [更新](https://api-docs.deepseek.com/updates/) · [推理](https://api-docs.deepseek.com/guides/thinking_mode/) |
+| 小米 MiMo | 复核 V2.6 ID、退役日期及 Chat 的 thinking.type 开关。 [目录](https://mimo.mi.com/docs/zh-CN/quick-start/summary/model) · [更新](https://mimo.mi.com/docs/zh-CN/updates/model) · [退役](https://mimo.mi.com/docs/zh-CN/updates/deprecate) · [思考](https://mimo.mi.com/docs/zh-CN/quick-start/usage-guide/text-generation/deep-thinking) |
+| Kimi | 核对 K3/K2 系列保留条目、过渡及思考设置。 [目录](https://platform.kimi.com/docs/models) · [推理](https://platform.kimi.com/docs/guide/use-thinking-models) · [强度](https://platform.kimi.com/docs/guide/use-reasoning-effort) |
+| 智谱 | 核对国内 GLM-5.4 公告及国际 GLM-5.3 文档，已收录 ID 暂沿用。 [国内 5.4](https://docs.bigmodel.cn/cn/guide/models/glm-5.4) · [国际 5.3](https://docs.z.ai/guides/llm/glm-5.3) |
+| 百炼 | 核对现有 ID、上下架及 enable_thinking。 [目录](https://help.aliyun.com/zh/model-studio/models) · [上架](https://help.aliyun.com/zh/model-studio/newly-released-models) · [下线](https://help.aliyun.com/zh/model-studio/model-depreciation) · [推理](https://help.aliyun.com/zh/model-studio/deep-thinking/) |
+| 火山方舟 | 核对 Seed、托管条目和推理开关。 [目录](https://www.volcengine.com/docs/ark/model-list?lang=zh) · [更新](https://www.volcengine.com/docs/ark/model-release-announcement?lang=zh) · [推理](https://www.volcengine.com/docs/ark/deep-thinking?lang=zh) |
+| 硅基流动 | 核对托管 ID、更新及接口参数。 [API](https://docs.siliconflow.cn/docs/api/chat-completions-post) · [更新](https://docs.siliconflow.cn/docs/release-notes/overview) |
+
 # 2026-11-25 · 1.8.8 正式版模型目录复核
 
 本次重新请求十家服务商登记的 45 个官方入口。Claude 与 Gemini 部分直连失败，通过官方文档的公开页面补读。保留 75 个对话 ID、手动填写和既有推理映射。关联公告、账户权限和地域范围未穷尽，未调用付费模型。
